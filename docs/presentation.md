@@ -50,6 +50,7 @@ Page cue: the line in the cover frame reads "Same 10 skills for every source; on
 - **Claim:** Practice compiles into a routine: one look, then 0 brain calls to act.
 - **Headline, paired vs one-shot (final 16:48, `runs/libero/compile-e/paired.jsonl`):** on the same 3 drawer starts (inits 6, 18, 38), by LIBERO's check: **compiled routine 3/3, one-shot Argon 1/3.** Cost per success **$0.0057 vs $1.09** (about 1/190). Calls per episode 1 vs 22; wall time 34–36 s vs 301–805 s. Both discordant starts favour the routine; exact McNemar p = 0.5 (n = 3 can't reach significance).
 - **Numbers:** LIBERO drawer (`runs/libero/compile-e/report.md`): one compile call ($0.043) from 3 successful practice trials; **3/3 new starts** opened by LIBERO's check, still true 1 s later. Per success, practice vs routine: **758 s vs 40 s, $0.61 vs $0.006**, 18.3 brain calls vs 1 look + 0. REASSEMBLE: 8/24 unseen starts vs Claude's routine 5/24, 42 s vs 186 s, 0 brain calls.
+- **Extended run on 9 more fresh drawer starts (final 16:57):** the routine opened 5/9 (95% CI 0.21–0.86). All 4 failures came from the single locate call placing the handle 6–10 cm off, not from the motion routine. Pooled over all 15 new starts: **11/15** (95% CI 0.45–0.92), at $0.012 per success and 63 s. The next fix is a better locate step: a second look, or the practice prior as a check.
 - **Caveat:** "Direction, not proof." n = 3 in one scene, and the handle moves at most 2 cm. A larger fresh-init run is going until 16:57.
 
 ### Stop 2. Reward from video, plus the gate

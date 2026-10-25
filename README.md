@@ -131,6 +131,7 @@ Sources: `runs/argon/probes/reward/findings.md`, `runs/argon/libero_chain/findin
 
 - Argon compiled its 3 successful drawer practice trials into one routine, in one call costing $0.043.
 - On 3 new starts the routine opened the drawer 3/3, judged by LIBERO's check and still true 1 s later.
+- **Extended run on 9 more fresh drawer starts (final 16:57):** the routine opened 5/9 (95% CI 0.21–0.86). All 4 failures came from the single locate call placing the handle 6–10 cm off, not from the motion routine. Pooled over all 15 new starts: **11/15** (95% CI 0.45–0.92), at $0.012 per success and 63 s. The next fix is a better locate step: a second look, or the practice prior as a check.
 
 | Per success | Practice | Routine |
 |---|---|---|
