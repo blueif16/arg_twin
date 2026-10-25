@@ -1,0 +1,249 @@
+# The text of runs/status/index.html: the cover flowchart, one chapter per section, then the ledger.
+# Edit freely; the page picks it up on its next rebuild (any record_check / record_event / publish_media,
+# or `.venv/bin/python -m harness.status`). Rules and limits: docs/design/ui-protocol.md. Top level:
+#   brand            the project name, shown as the text logo
+#   title, subtitle  the cover headline and its one-sentence explanation
+#   input, output    the flowchart's two ends: label (shown in capitals), note (under it), explain (below)
+#   footer           the sim-only line at the end of the ledger
+#   builders         the last page: names (who built it) and note (one line above the wordmark)
+#   tracks           per data track (validation.yaml `tracks`; the switcher at the flowchart's start shows one at a
+#                    time): label (at most 14 characters; default the track's name up to its bracket), and optional
+#                    overrides of input (note, explain), output (note) and sections ({A: {title, claim, numbers, read,
+#                    explain, feature}}). Everything else in this file is the first track's (REASSEMBLE) text. Another
+#                    track never falls back to it: without an override a step shows its node name and a line saying
+#                    how many of the track's checks sit there. Status, scope and why come from validation.yaml
+# Per section (one chapter each, in this order; main sections are numbered 1, 2, 3 ... in the page):
+#   stages   validation.yaml loop stages the section covers; their role (main / feedback / integrity) places the
+#            node. A track's container stage (T2) is never listed: its checks name their own step
+#   node    the flowchart label, at most 18 characters, shown in capitals
+#   short    the label in the page navigator, one word (default: node)
+#   parts    for a section with several stages: one word per stage, e.g. {B0: cameras}
+#   in, out  arrow labels: what the step takes and what it hands on, at most 2 short lines of 9 characters
+#            (`in` defaults to the previous main section's `out`)
+#   title    the chapter headline, at most 8 words; claim: one sentence the numbers below must back up
+#   read     optional paragraphs for the chapter's method sheet (Markdown: **bold**, `code`, lists)
+#   numbers  up to two check ids shown big (default: each stage's first gated check)
+#   feature  media id or exact title shown large (default: latest featured item, else latest item)
+#   show     extra tiles: cost
+#   explain  an explainer card opened from the flowchart: title, text (Markdown) and clips. A clip is
+#            title, caption, tag (success / failure), paths (one mp4 per camera, played in sync) and labels.
+#            Cut clean clips from a recording with the cut_clip tool.
+# Skill tags under each node are not set here: each skill's SKILL.md frontmatter `steps:` places it
+# (docs/design/ui-protocol.md, section 2).
+# loops: the two self-optimization loops (docs/design/vision-draft.md), drawn as soft regions behind their nodes; hover
+#   or focus shows a panel, a tap opens it as a sheet. Per loop:
+#   id, label     the region's label (shown in capitals, at most 14 characters)
+#   steps         validation.yaml loop stages it encloses
+#   objective     one line, at most 56 characters (the same for every track unless a track overrides it)
+#   headline      up to 5 checks, each with a short label (at most 18 characters), shown against target
+#   curve         the check whose records give the region's trend glyph (default: the first headline check)
+#   better        {check: lower|higher} for a tracked (no target) curve check
+#   playground    what the loop runs on for this track, at most 60 characters
+#   given         for a track whose source supplies the loop (a simulator's exact scene): one line, at most 60 characters
+#   Another track's loop text goes under tracks: <id>: loops: <loop id>: and never falls back to this one's headline or
+#   playground. What each step optimized (lessons, versions, tools, routines, frozen runs) comes from the records, the
+#   skills' Lessons and the run folders, not from here.
+brand: Bot18
+title: From footage to a twin to a policy
+subtitle: Argon reads real robot footage, builds a simulated twin shaped around the task, and teaches itself the task inside it.
+input:
+  label: Real footage
+  note: Franka arm, force sensor, 3 cameras
+  explain:
+    title: The REASSEMBLE recordings
+    text: |
+      REASSEMBLE (Sliwowski et al., TU Wien, 2025) is a public dataset of a Franka arm, teleoperated by a person,
+      taking parts out of and putting parts into the NIST Task Board 1.
+
+      - **149 recordings, about 13 hours** at 30 fps, with 4,551 labelled demonstrations, of which 516 failed.
+      - **Every recording has three cameras**: two fixed webcams (hama1, hama2) and a wrist camera, all 640×480.
+        It also has an event camera, a force/torque sensor at the flange, joint states and the gripper.
+      - **Every segment has a label**: a verb (Pick, Insert, Remove or Place), one of 17 parts (connectors,
+        gears, pegs and a nut) and whether it succeeded.
+      - **Inserting is the hard part.** In the episodes on disk, 39 of 143 inserts (27%) failed.
+
+      Argon reads these recordings blind in step 1. In step 2 the twin has to succeed and jam where the real
+      robot did. Sources: `docs/research/reassemble-data-notes.md`.
+    clips:
+      - title: Insert round peg 1
+        caption: Episode 1, 42.6–60.8 s. The peg goes in on the first try; this is the attempt the twin replays in step 2.
+        tag: success
+        paths: [runs/explain/reassemble/ep001_insert_round_peg_1_hama1.mp4, runs/explain/reassemble/ep001_insert_round_peg_1_hama2.mp4, runs/explain/reassemble/ep001_insert_round_peg_1_hand.mp4]
+        labels: [fixed camera 1, fixed camera 2, wrist camera]
+      - title: Thread the nut, and fail
+        caption: Episode 1, 72.2–95.0 s. The M16 nut ("bolt 4") does not go on. The operator picks it up again and succeeds on the next try (105–125 s).
+        tag: failure
+        paths: [runs/explain/reassemble/ep001_insert_bolt_4_fail_hama1.mp4, runs/explain/reassemble/ep001_insert_bolt_4_fail_hama2.mp4, runs/explain/reassemble/ep001_insert_bolt_4_fail_hand.mp4]
+        labels: [fixed camera 1, fixed camera 2, wrist camera]
+      - title: Pull the small gear, and fail
+        caption: Episode 0, 37.7–52.0 s. The gear turns freely on its shaft but will not come off; all four small-gear attempts in this recording fail.
+        tag: failure
+        paths: [runs/explain/reassemble/ep000_remove_small_gear_fail_hama1.mp4, runs/explain/reassemble/ep000_remove_small_gear_fail_hama2.mp4, runs/explain/reassemble/ep000_remove_small_gear_fail_hand.mp4]
+        labels: [fixed camera 1, fixed camera 2, wrist camera]
+      - title: Remove the waterproof connector
+        caption: Episode 0, 3.3–16.7 s. A clean remove on the first try.
+        tag: success
+        paths: [runs/explain/reassemble/ep000_remove_waterproof_hama1.mp4, runs/explain/reassemble/ep000_remove_waterproof_hama2.mp4, runs/explain/reassemble/ep000_remove_waterproof_hand.mp4]
+        labels: [fixed camera 1, fixed camera 2, wrist camera]
+tracks:
+  so101:
+    label: SO-101
+    input:
+      note: SO-101 arm, 2 cameras, no force
+      explain:
+        title: The SO-101 recordings
+        text: |
+          `lerobot/svla_so101_pickplace` is a public LeRobot dataset. A person drives an SO-101 follower arm with a
+          leader arm to put a pink LEGO brick into a clear box.
+
+          - **50 recordings, 11,939 frames** at 30 fps, about 6.6 minutes in all.
+          - **Two fixed cameras**, up and side, both 640×480, with no calibration file.
+          - **Six joint positions and the leader arm's six commands** for every frame.
+          - **No force sensor, no CAD and no step labels**: every recording has the same task string,
+            "pink lego brick into the transparent box".
+          - Episodes 0–34 are for building the twin and 35–49 are the gate set, frozen on 25 Oct 2026.
+
+          REASSEMBLE gives CAD and force but no commands; SO-101 gives commands but no CAD or force. Sources:
+          `data/so101/svla_so101_pickplace/meta/info.json`, `playbook/splits_so101.json`.
+    sections:
+      A:
+        title: No step labels to read on SO-101
+        claim: Every recording has the same task string and no step labels, so there is nothing to score reading against.
+      B:
+        title: A twin from two cameras and joint logs
+        claim: With no CAD or force sensor, the robot calibrates both cameras, and the logged commands, replayed in the twin, must land the brick in the box.
+        numbers: [T2.kp_px, T2.replay_success]
+      C:
+        title: Task tools wait for the REASSEMBLE loop
+        claim: Not started. SO-101 is a reconstruction and replay track; it learns only after the REASSEMBLE loop has run once.
+      D:
+        title: Practice waits for the REASSEMBLE loop
+        claim: Not started. SO-101 practises only after the REASSEMBLE loop has run once.
+      E:
+        title: Compiling waits for the REASSEMBLE loop
+        claim: Not started. Routines come from practice, and SO-101 practises only after the REASSEMBLE loop has run once.
+      F:
+        title: No physics questions from SO-101 yet
+        claim: Questions come from practice, which has not started on SO-101.
+      G:
+        title: No integrity checks written for SO-101
+        claim: SO-101 has no exam set, only train and gate episodes, and no integrity check is written for it yet.
+    loops:
+      twin:
+        headline:
+          T2.kp_px: camera keypoints
+          T2.two_view_px: two-view px
+          T2.grasp_object_mm: brick at grasp
+          T2.replay_success: replay success
+          T2.replay_negative_control: shifted-brick ctrl
+        curve: T2.replay_success
+        playground: SO-101 recordings, 2 cameras, joint logs
+      task:
+        playground: Not started; learns after the REASSEMBLE loop
+  footage:
+    label: Footage only
+    input:
+      note: human or egocentric video
+    loops:
+      twin:
+        playground: Human or egocentric video, no robot logs
+      task:
+        playground: Not started
+    sections:
+      A:
+        title: Read video with no robot logs
+        claim: Not started. With no joints, force or calibration, the video itself is the only truth to read against.
+      B:
+        title: Rebuild the scene from video alone
+        claim: Not started. The plan is to rebuild from video with outside hand-pose and scale cues, checked by render-and-compare and physical plausibility.
+output:
+  label: Real arm
+  note: sim only until a real arm confirms
+footer: All results are sim-only until a real arm confirms them.
+builders:
+  names: [Shiran Wang, Xinrui Yi]
+  note: Built in a day on Gemini 4 Argon. Argon is element 18.
+loops:
+  - id: twin
+    label: Twin loop
+    steps: [A, B0, B1, B2]
+    objective: The twin explains observations it was not fitted on.
+    headline:
+      B2.dist_seat_rate_err: seat-rate error
+      B2.dist_force_ks: force KS
+      B2.dist_negative_control: wrong-twin control
+      A.segment_f1: segment F1
+      A.success_bacc: success bacc
+    playground: REASSEMBLE recordings, Franka, force, 3 cameras
+  - id: task
+    label: Task loop
+    steps: [C, D, E]
+    objective: Success in a frozen budget; cost and brain share fall.
+    headline:
+      D.success_rate: success
+      D.tokens_per_success: tokens per success
+      D.brain_share: brain share
+    better: {D.tokens_per_success: lower, D.brain_share: lower}
+    playground: The peg twin built in step 2; LIBERO is next
+sections:
+  - id: A
+    stages: [A]
+    node: Read footage
+    short: Read
+    in: recordings
+    out: labelled steps
+    title: Argon reads the footage
+    claim: From long recordings of real assembly, Argon labels every step and tells the failed attempts from the good ones.
+    numbers: [A.segment_f1, A.success_bacc]
+  - id: B
+    stages: [B0, B1, B2]
+    node: Build twin
+    short: Twin
+    parts: {B0: cameras, B1: contact, B2: replay}
+    out: twin
+    title: It builds a twin that fails the way reality fails
+    claim: The twin's cameras line up with the real ones, and replayed attempts succeed and jam where the real robot did.
+    numbers: [B0.overlay_hama1, B2.outcome_bacc]
+  - id: C
+    stages: [C]
+    node: Task tools
+    short: Tools
+    out: tools
+    title: Tools come from the twin
+    claim: Argon turns the twin's geometry into task-level tools like insert(part, hole), and each tool proves itself in the twin first.
+    numbers: [C.tool_success]
+  - id: D
+    stages: [D]
+    node: Practise
+    short: Practise
+    out: working moves
+    title: It practises on starts it has never seen
+    claim: Argon thinks only at decision points while fast routines run the contact, and success climbs with practice.
+    numbers: [D.success_rate, D.tokens_per_success]
+  - id: E
+    stages: [E]
+    node: Compile
+    short: Compile
+    out: routines
+    title: Practice compiles into routines
+    claim: Moves that work become routines that run without Argon, so every attempt costs fewer tokens and less time.
+    numbers: [E.routine_success, E.transfer_cost_ratio]
+    show: [cost]
+  - id: F
+    stages: [F]
+    node: Physics questions
+    short: Feedback
+    in: practice
+    out: answers fix the twin
+    title: Physics questions go back to the twin
+    claim: When practice leans on physics the replays never checked, the question goes back to the real recordings.
+    numbers: [F.open_questions]
+  - id: G
+    stages: [G]
+    node: Integrity
+    short: Integrity
+    in: every number
+    out: verdicts
+    title: Nothing was faked
+    claim: The exam recordings stayed sealed, the simulator was never bent, and the harness, not the agent, judged every number.
+    numbers: [G.exam_reads, G.cheat_violations]
