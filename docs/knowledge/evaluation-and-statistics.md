@@ -33,6 +33,11 @@ When does a result in the twin say anything about the real robot? How many trial
   - Score registration at targets not used to fit it (TRE, not FRE) [cheok-2018].
   - Keep co-training scenes disjoint from evaluation scenes [polaris-2025].
 - **Graders differ.** Rule-based sim grading agreed with human grading on 28 of 30 sampled trials. The authors charge the disagreement to the reconstruction, which inflates its error [recon-effects-2026].
+- **A rising learning curve is not proof of learning.** SEAR pairs each alternative explanation with a control: more attempts (best of three restarts at a third of the budget each, and a run with no library), familiar tasks (TEST starts never shown, five tiers of distance from practice), privileged state (a sealed judge), luck (three repeats of the whole run, library included), budget (matched development time, tokens logged) [sear-2026].
+  - Two runs with the same setup differed by 20.9 points; a single run cannot be told apart from luck [sear-2026].
+  - Against held-out Vanilla repeats over 1,510 model–task pairs, the library added 8–10 points beyond rerun noise [sear-2026].
+  - Practice streaks overstate held-out success: of six real-robot runs that reached ten practice successes in a row, one then scored 10/10 on operator-staged scenes and two scored 4/10. The agent's own resets rarely produced the hard starts [sear-2026].
+  - Seals leak: agents read object geometry from asset files, found a hidden success check within one session, and a saved library quoted a held-out instruction word for word [sear-2026].
 - **Checks that can be fooled.**
   - Reprojection residual alone misses biased calibrations [hagemann-2021, autofocus-2024].
   - Low dynamics-prediction error did not imply insertion success across model families [touching-gnn-2025].
@@ -46,7 +51,8 @@ When does a result in the twin say anything about the real robot? How many trial
 - **Doesn't work:**
   - peeking at a batch test and adding trials [step-2025];
   - correlation over a handful of cells [recon-effects-2026];
-  - percentages without counts [empirical-science-2024].
+  - percentages without counts [empirical-science-2024];
+  - crediting a learning curve to retained experience without a no-library arm and a budget-matched restart arm [sear-2026].
 - **Efficient:**
   - large sim batches corrected by a small paired real set, but only when sim and real outcomes correlate [suresim-2025];
   - sequential stopping for large gaps [step-2025].
@@ -79,6 +85,11 @@ These are our computations and inferences, not the sources' claims.
   - halve the clearance.
 
   Record the smallest error each check detects (the validate-checks skill's detection-capability idea [iso-11843-1997, secondhand]).
+- **Attempt 1 vs attempt N** (SEAR's controls applied to our plan [sear-2026]):
+  - Attempt N adds task tools and the learned library at once (`playbook/skills/practice/SKILL.md:3`), so a gain cannot be credited to Argon's own experience. Add a third arm on the same frozen starts and budget: task tools with an empty library.
+  - Run each arm at least three times and report the spread; Argon's sampling cannot be fixed.
+  - Report the practice cost that built the library beside the per-attempt cost, and the number of later attempts needed to recover it.
+- **Skill text is not sealed.** As of 2026-10-25, `read-footage` Lessons name 12 of the 24 gate episodes (24, 42, 58, 65, 68, 92, 99, 102, 103, 117, 136, 140), 8 of them with times or per-cycle detail (42, 58, 92, 99, 102, 103, 117, 140), and give train episode 1's missed segment with its times (95.0–105.0 s). A brain that reads the skill has seen these, so they are not blind A tests for it: an Argon read of episode 1 reproduced that segment exactly. Exam episodes appear only inside range statistics ("episodes 0–14").
 - **Exam split.** `G.exam_reads = 0` and targets frozen before the confirmatory recording match [werner-2018, cheok-2018] and the PolaRiS disjoint-scene rule. Episode-0 results stay exploratory, as validation.yaml v3 says.
 
 ## Added 2026-10-25: a permissive-hole negative control can pass or fail for the wrong reason

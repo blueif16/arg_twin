@@ -23,6 +23,14 @@ How do agents turn slow reasoning that worked into reusable skills or programs (
 - EmbodiedSWE: a verified solution to a similar task raises success 11% → 31%; a dissimilar one speeds early progress but ends no better (17%) [embodiedswe-2026].
 - Encore: demonstrations given as evidence to read (keyframes, gripper events, full trajectory), not as training data. Frozen programs reach 96.3% vs 89.3% for the best prior agent with the same model on LIBERO-PRO; on RoboDojo tasks whose instructions leave the goal unstated, no program succeeds without demonstrations [encore-2026].
 
+**A library helps most where the model succeeds sometimes** (SEAR, 25 model–family pairs) [sear-2026]:
+- Mean gain +0.9 points where the model already scores above 80% without a library, +12.0 between 30 and 80%, +3.0 below 30%.
+- It can hurt: GPT-5.6-sol on RoboLab scored 46.9% with no library, 42.4% with its own, 60.6% with Opus's. Libraries carry across models.
+- Wrong beliefs persist like skills: one run saved a self-built verifier that was wrong on 91% of 699 rollouts; it scored 4.6% against 15.5 and 23.6% for sibling runs without it.
+- Control and grasp routines transfer across tasks and simulators; task-specific solutions do not.
+- Live agent vs frozen code on a real robot: GPT-6-astra 88.0% live vs 41.4% frozen, but a live episode takes a median 12.8 min of robot time vs 3.8 min. Fable 5.1 scripted its own commands and scored about the same either way (66.4% vs 70.2%).
+- Frozen real-robot policies mostly failed at limits the agent set after a single practice incident (29 of 34 failures for Fable 5.1, 32 of 35 for Opus 5).
+
 **Consolidating into a learned fast policy** (HERO, real Franka, Gemini-3-Flash, zero human demos): VLM reasoning 46.6 s per subtask, exemplar reuse 21.0 s, distilled visuomotor policy 37.9 s. Deployed, 86.7% of successful subtasks run on the distilled policy. All three levels 86.0% vs reasoning only 76.0% and distilled only 70.0%; 103/120 tasks [hero-2026].
 
 **Outside robotics, same pattern.** HEXIS compiles agent skills into finite-state machines: +16.2 pp over skill-in-context ReAct, 38.4–88.9% fewer tokens (Qwen3.8-27B); updates accepted only after static checks and replay of all previously accepted traces [hexis-2026]. FlowEvo compiles successful workflows into callable skills and suppresses skills with negative transfer: ALFWorld 85.6%, about a third of the tokens [flowevo-2026].
@@ -51,4 +59,6 @@ How do agents turn slow reasoning that worked into reusable skills or programs (
 - For us: store the skill code and the raw traces it came from; SkillEvolBench says distillation loses information.
 - For us: compile motion phases (approach, align, seat) before branch decisions; URAI shows decisions compiled too early lose success.
 - For us: plot inference time and output tokens per success separately from sim time, as RAX's Figure 7 does. That curve is our headline.
-- For us: AGP's transfer result shows saved experience carries task findings between models, which is why Argon starts from an empty learned-skill library.
+- For us: AGP's transfer result shows saved experience carries task findings between models, which is why Argon starts from an empty learned-skill library. SEAR's cross-model libraries (42.4% → 60.6%) say the same [sear-2026].
+- For us: a routine's limits (force caps, reach, timeouts) set after one incident need a scheduled re-test, not only the ≥5-invocation demotion rule; SEAR's frozen policies failed mostly at such limits [sear-2026].
+- For us: the library's effect is a measured quantity, not an assumption. See the attempt 1 vs attempt N arms in [evaluation-and-statistics](evaluation-and-statistics.md).
