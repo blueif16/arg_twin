@@ -1,0 +1,19 @@
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+data/
+runs/*
+!runs/status/
+runs/status/*
+!runs/status/story.yaml
+vendors/
+MUJOCO_LOG.TXT
+.env
+*.key
+
+# Internal logs and dated plan notes (kept locally, not in the repo)
+docs/design/progress-log.md
+docs/design/backlog.md
+docs/design/archive/
+.claude/scheduled_tasks.lock
