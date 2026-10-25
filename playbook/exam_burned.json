@@ -1,0 +1,14 @@
+{
+ "note": "Exam episodes exposed to a brain before its final score. Excluded from that brain's exam score; still valid for other brains. Never delete entries.",
+ "burned": [
+  {
+   "brain": "claude",
+   "episodes": [
+    9,
+    10
+   ],
+   "reason": "recording_info listings returned label counts for exam episodes 9 and 10; one query_signals on episode 9 by dev-test before the exam guard existed (integrity_audit, 2026-10-25)",
+   "evidence": "runs/claude/run-standin-1/audit/integrity_audit.json"
+  }
+ ]
+}

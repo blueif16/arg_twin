@@ -1,0 +1,756 @@
+{
+ "frozen": "2026-10-24",
+ "rule": "exam = dataset's published test split (minus episode 0); gate = sha256(recording) % 5 == 0 among the dataset's train split; everything else train. Episode 0 is train-only because its labels are printed in docs/. Never edit; a new split needs a new file and a note in validation.yaml history.",
+ "counts": {
+  "train": 89,
+  "exam": 36,
+  "gate": 24
+ },
+ "episodes": {
+  "0": {
+   "recording": "2025-01-09-14-11-58",
+   "hf_split": "test",
+   "split": "train"
+  },
+  "1": {
+   "recording": "2025-01-09-15-27-49",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "2": {
+   "recording": "2025-01-09-17-03-05",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "3": {
+   "recording": "2025-01-09-19-15-33",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "4": {
+   "recording": "2025-01-10-15-28-50",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "5": {
+   "recording": "2025-01-10-18-31-44",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "6": {
+   "recording": "2025-01-11-13-42-45",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "7": {
+   "recording": "2025-01-11-14-45-48",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "8": {
+   "recording": "2025-01-11-15-10-57",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "9": {
+   "recording": "2025-01-13-10-51-29",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "10": {
+   "recording": "2025-01-13-11-52-19",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "11": {
+   "recording": "2025-01-13-15-06-09",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "12": {
+   "recording": "2025-01-13-17-51-11",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "13": {
+   "recording": "2025-01-13-18-32-31",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "14": {
+   "recording": "2025-01-13-18-53-43",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "15": {
+   "recording": "2025-01-09-16-44-57",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "16": {
+   "recording": "2025-01-09-18-21-40",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "17": {
+   "recording": "2025-01-09-18-41-38",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "18": {
+   "recording": "2025-01-10-17-10-38",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "19": {
+   "recording": "2025-01-11-11-12-32",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "20": {
+   "recording": "2025-01-11-14-14-43",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "21": {
+   "recording": "2025-01-11-14-43-37",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "22": {
+   "recording": "2025-01-13-11-44-13",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "23": {
+   "recording": "2025-01-13-17-46-07",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "24": {
+   "recording": "2025-01-13-18-25-52",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "25": {
+   "recording": "2025-01-13-18-40-21",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "26": {
+   "recording": "2025-01-13-19-08-03",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "27": {
+   "recording": "2025-01-13-19-29-01",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "28": {
+   "recording": "2025-01-14-10-49-57",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "29": {
+   "recording": "2025-01-14-11-28-33",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "30": {
+   "recording": "2025-01-09-13-59-54",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "31": {
+   "recording": "2025-01-09-14-47-32",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "32": {
+   "recording": "2025-01-09-15-02-21",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "33": {
+   "recording": "2025-01-09-15-08-11",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "34": {
+   "recording": "2025-01-09-18-52-39",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "35": {
+   "recording": "2025-01-10-15-40-55",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "36": {
+   "recording": "2025-01-13-09-51-50",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "37": {
+   "recording": "2025-01-13-10-14-56",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "38": {
+   "recording": "2025-01-13-16-06-01",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "39": {
+   "recording": "2025-01-13-17-02-10",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "40": {
+   "recording": "2025-01-13-17-40-45",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "41": {
+   "recording": "2025-01-13-18-06-08",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "42": {
+   "recording": "2025-01-14-10-54-26",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "43": {
+   "recording": "2025-01-14-11-06-43",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "44": {
+   "recording": "2025-01-14-11-53-50",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "45": {
+   "recording": "2025-01-09-14-57-02",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "46": {
+   "recording": "2025-01-09-15-37-27",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "47": {
+   "recording": "2025-01-09-17-34-18",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "48": {
+   "recording": "2025-01-09-19-28-18",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "49": {
+   "recording": "2025-01-10-18-12-06",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "50": {
+   "recording": "2025-01-11-11-51-20",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "51": {
+   "recording": "2025-01-11-13-46-54",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "52": {
+   "recording": "2025-01-11-14-09-00",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "53": {
+   "recording": "2025-01-11-14-40-46",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "54": {
+   "recording": "2025-01-11-15-18-22",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "55": {
+   "recording": "2025-01-13-14-57-37",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "56": {
+   "recording": "2025-01-13-17-52-32",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "57": {
+   "recording": "2025-01-13-19-04-46",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "58": {
+   "recording": "2025-01-13-19-19-46",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "59": {
+   "recording": "2025-01-14-12-05-01",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "60": {
+   "recording": "2025-01-09-14-40-21",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "61": {
+   "recording": "2025-01-09-17-14-59",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "62": {
+   "recording": "2025-01-09-17-51-35",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "63": {
+   "recording": "2025-01-10-16-17-40",
+   "hf_split": "unassigned",
+   "split": "train"
+  },
+  "64": {
+   "recording": "2025-01-10-16-29-00",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "65": {
+   "recording": "2025-01-10-16-47-15",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "66": {
+   "recording": "2025-01-10-17-54-09",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "67": {
+   "recording": "2025-01-11-14-22-09",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "68": {
+   "recording": "2025-01-11-15-35-08",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "69": {
+   "recording": "2025-01-13-11-23-17",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "70": {
+   "recording": "2025-01-13-16-27-57",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "71": {
+   "recording": "2025-01-13-17-57-45",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "72": {
+   "recording": "2025-01-13-18-16-38",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "73": {
+   "recording": "2025-01-14-10-05-38",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "74": {
+   "recording": "2025-01-14-11-30-33",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "75": {
+   "recording": "2025-01-09-17-40-57",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "76": {
+   "recording": "2025-01-09-18-00-33",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "77": {
+   "recording": "2025-01-10-15-39-56",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "78": {
+   "recording": "2025-01-10-15-49-06",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "79": {
+   "recording": "2025-01-10-15-59-54",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "80": {
+   "recording": "2025-01-10-18-03-36",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "81": {
+   "recording": "2025-01-10-18-41-18",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "82": {
+   "recording": "2025-01-11-11-35-53",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "83": {
+   "recording": "2025-01-11-11-55-48",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "84": {
+   "recording": "2025-01-11-11-59-40",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "85": {
+   "recording": "2025-01-11-12-22-42",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "86": {
+   "recording": "2025-01-11-14-04-40",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "87": {
+   "recording": "2025-01-13-15-50-28",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "88": {
+   "recording": "2025-01-13-18-45-09",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "89": {
+   "recording": "2025-01-14-10-28-24",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "90": {
+   "recording": "2025-01-09-15-18-29",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "91": {
+   "recording": "2025-01-09-16-55-42",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "92": {
+   "recording": "2025-01-09-19-06-44",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "93": {
+   "recording": "2025-01-09-19-14-15",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "94": {
+   "recording": "2025-01-10-15-34-33",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "95": {
+   "recording": "2025-01-10-16-30-49",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "96": {
+   "recording": "2025-01-10-17-36-05",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "97": {
+   "recording": "2025-01-11-11-21-44",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "98": {
+   "recording": "2025-01-11-14-59-16",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "99": {
+   "recording": "2025-01-11-15-02-03",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "100": {
+   "recording": "2025-01-11-15-27-19",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "101": {
+   "recording": "2025-01-13-10-05-22",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "102": {
+   "recording": "2025-01-13-11-07-43",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "103": {
+   "recording": "2025-01-13-15-18-12",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "104": {
+   "recording": "2025-01-13-18-59-44",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "105": {
+   "recording": "2025-01-09-15-46-39",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "106": {
+   "recording": "2025-01-09-15-49-10",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "107": {
+   "recording": "2025-01-09-17-23-07",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "108": {
+   "recording": "2025-01-09-18-08-36",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "109": {
+   "recording": "2025-01-09-18-34-34",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "110": {
+   "recording": "2025-01-09-19-24-18",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "111": {
+   "recording": "2025-01-10-17-19-03",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "112": {
+   "recording": "2025-01-10-17-25-29",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "113": {
+   "recording": "2025-01-11-11-29-58",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "114": {
+   "recording": "2025-01-11-14-54-27",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "115": {
+   "recording": "2025-01-13-11-01-25",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "116": {
+   "recording": "2025-01-13-11-16-17",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "117": {
+   "recording": "2025-01-13-15-11-07",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "118": {
+   "recording": "2025-01-14-11-19-51",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "119": {
+   "recording": "2025-01-09-13-57-17",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "120": {
+   "recording": "2025-01-09-15-30-21",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "121": {
+   "recording": "2025-01-10-16-19-15",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "122": {
+   "recording": "2025-01-10-16-37-45",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "123": {
+   "recording": "2025-01-11-13-55-45",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "124": {
+   "recording": "2025-01-11-13-59-43",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "125": {
+   "recording": "2025-01-13-11-37-50",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "126": {
+   "recording": "2025-01-13-16-14-09",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "127": {
+   "recording": "2025-01-13-16-45-31",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "128": {
+   "recording": "2025-01-13-16-52-33",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "129": {
+   "recording": "2025-01-13-16-57-41",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "130": {
+   "recording": "2025-01-13-19-14-28",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "131": {
+   "recording": "2025-01-14-09-57-36",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "132": {
+   "recording": "2025-01-14-10-57-14",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "133": {
+   "recording": "2025-01-14-11-45-36",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "134": {
+   "recording": "2025-01-09-14-28-47",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "135": {
+   "recording": "2025-01-09-18-18-47",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "136": {
+   "recording": "2025-01-09-18-44-37",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "137": {
+   "recording": "2025-01-10-18-23-40",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "138": {
+   "recording": "2025-01-11-14-35-33",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "139": {
+   "recording": "2025-01-11-15-32-26",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "140": {
+   "recording": "2025-01-13-09-43-29",
+   "hf_split": "train",
+   "split": "gate"
+  },
+  "141": {
+   "recording": "2025-01-13-11-18-57",
+   "hf_split": "test",
+   "split": "exam"
+  },
+  "142": {
+   "recording": "2025-01-13-11-31-57",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "143": {
+   "recording": "2025-01-13-15-58-56",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "144": {
+   "recording": "2025-01-13-16-19-55",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "145": {
+   "recording": "2025-01-13-17-34-32",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "146": {
+   "recording": "2025-01-14-10-34-43",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "147": {
+   "recording": "2025-01-14-11-36-55",
+   "hf_split": "train",
+   "split": "train"
+  },
+  "148": {
+   "recording": "2025-01-14-11-50-46",
+   "hf_split": "train",
+   "split": "train"
+  }
+ }
+}
