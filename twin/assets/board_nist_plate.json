@@ -1,0 +1,35 @@
+{
+ "about": "NIST Assembly Task Board 1 laser plate (GMC_Laser_Plate_Virtual.STL, 384 x 384 x 9 mm) placed in the board frame (mocap NIST_Board1 convention, plate top at z = 0) by the mirrored rigid transform that maps the contact-estimated hole layout onto the NIST plate features (board_contact_layout nist_fit: 17 holes, 0.76 mm RMS). Corners named by NIST plate coordinates: c00 = NIST (0,0), c10 = (384,0), c11 = (384,384), c01 = (0,384). Written by twin/camcal.py for twin/world.py renders (2026-10-24).",
+ "source": "runs/claude/run-standin-1/board/layout_nist.json nist_fit",
+ "corners_board_m": {
+  "c00": [
+   0.38626,
+   -0.0043
+  ],
+  "c10": [
+   0.3804,
+   -0.38825
+  ],
+  "c11": [
+   -0.00355,
+   -0.3824
+  ],
+  "c01": [
+   0.00231,
+   0.00156
+  ]
+ },
+ "centre_board_m": [
+  0.19135,
+  -0.19335
+ ],
+ "edge_c00_c10_yaw_deg": -90.874,
+ "size_m": [
+  0.384,
+  0.384
+ ],
+ "thickness_m": 0.009,
+ "base": {
+  "note": "The plate sits on a darker frame (aluminium profiles with round end caps at the corners, seen in the hama crops); with the camera-derived plate-top height (calib board z) it fills the space down to the table. Rendered as one darker slab under the plate footprint."
+ }
+}

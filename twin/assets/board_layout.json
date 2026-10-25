@@ -1,0 +1,576 @@
+{
+ "generated_by": "twin/layout.py",
+ "generated_at": "2026-10-24 17:40",
+ "frame": "board = mocap NIST_Board1 frame (per-recording poses JSON); metres; z up",
+ "split": "train",
+ "n_events": 80,
+ "episodes": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  13
+ ],
+ "method": "TCP (O_T_EE, 0.174 m) at gripper release in successful Insert segments, mapped into the recording's mocap board frame; median per part",
+ "mocap_board_world_z": {
+  "n": 153,
+  "z_p5": 0.0036,
+  "z_p50": 0.0082,
+  "z_p95": 0.0169
+ },
+ "parts": {
+  "BNC": {
+   "slug": "bnc",
+   "n": 6,
+   "episodes": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    13
+   ],
+   "xy": [
+    0.10364,
+    -0.1902
+   ],
+   "xy_sigma": [
+    0.00193,
+    0.00179
+   ],
+   "xy_mad_mm": [
+    3.18,
+    2.95
+   ],
+   "tcp_z_release": 0.0218,
+   "tcp_z_release_mad_mm": 3.52,
+   "tilt_deg_median": 3.43,
+   "grip_width_mm_median": 12.4,
+   "long_axis_yaw_deg_measured": 87.8,
+   "long_axis_yaw_deg": 90.0
+  },
+  "D-SUB": {
+   "slug": "dsub",
+   "n": 5,
+   "episodes": [
+    2,
+    5,
+    6,
+    7,
+    13
+   ],
+   "xy": [
+    0.17925,
+    -0.27067
+   ],
+   "xy_sigma": [
+    0.001,
+    0.00292
+   ],
+   "xy_mad_mm": [
+    1.42,
+    4.4
+   ],
+   "tcp_z_release": 0.083,
+   "tcp_z_release_mad_mm": 3.65,
+   "tilt_deg_median": 3.94,
+   "grip_width_mm_median": 15.45,
+   "long_axis_yaw_deg_measured": 5.8,
+   "long_axis_yaw_deg": 0.0
+  },
+  "Ethernet": {
+   "slug": "ethernet",
+   "n": 5,
+   "episodes": [
+    2,
+    4,
+    5,
+    7,
+    13
+   ],
+   "xy": [
+    0.03154,
+    -0.33526
+   ],
+   "xy_sigma": [
+    0.00392,
+    0.00213
+   ],
+   "xy_mad_mm": [
+    5.91,
+    3.21
+   ],
+   "tcp_z_release": 0.051,
+   "tcp_z_release_mad_mm": 1.3,
+   "tilt_deg_median": 9.67,
+   "grip_width_mm_median": 9.04,
+   "long_axis_yaw_deg_measured": 175.5,
+   "long_axis_yaw_deg": 0.0
+  },
+  "USB": {
+   "slug": "usb",
+   "n": 4,
+   "episodes": [
+    2,
+    4,
+    5,
+    13
+   ],
+   "xy": [
+    0.10637,
+    -0.04428
+   ],
+   "xy_sigma": [
+    0.00469,
+    0.001
+   ],
+   "xy_mad_mm": [
+    6.32,
+    0.98
+   ],
+   "tcp_z_release": 0.0876,
+   "tcp_z_release_mad_mm": 1.59,
+   "tilt_deg_median": 17.08,
+   "grip_width_mm_median": 7.93,
+   "long_axis_yaw_deg_measured": 49.2,
+   "long_axis_yaw_deg": 90.0
+  },
+  "bolt 4": {
+   "slug": "bolt_4",
+   "n": 5,
+   "episodes": [
+    1,
+    2,
+    3,
+    5,
+    7
+   ],
+   "xy": [
+    0.3257,
+    -0.34535
+   ],
+   "xy_sigma": [
+    0.001,
+    0.00417
+   ],
+   "xy_mad_mm": [
+    1.18,
+    6.29
+   ],
+   "tcp_z_release": 0.0305,
+   "tcp_z_release_mad_mm": 3.53,
+   "tilt_deg_median": 3.32,
+   "grip_width_mm_median": 22.47,
+   "long_axis_yaw_deg_measured": 42.8,
+   "long_axis_yaw_deg": 0.0
+  },
+  "large gear": {
+   "slug": "large_gear",
+   "n": 5,
+   "episodes": [
+    2,
+    3,
+    4,
+    5,
+    13
+   ],
+   "xy": [
+    0.33718,
+    -0.14125
+   ],
+   "xy_sigma": [
+    0.00256,
+    0.0022
+   ],
+   "xy_mad_mm": [
+    3.86,
+    3.32
+   ],
+   "tcp_z_release": 0.0406,
+   "tcp_z_release_mad_mm": 1.99,
+   "tilt_deg_median": 3.31,
+   "grip_width_mm_median": 33.14,
+   "long_axis_yaw_deg_measured": 156.1,
+   "long_axis_yaw_deg": 0.0
+  },
+  "medium gear": {
+   "slug": "medium_gear",
+   "n": 4,
+   "episodes": [
+    2,
+    3,
+    4,
+    5
+   ],
+   "xy": [
+    0.33998,
+    -0.19176
+   ],
+   "xy_sigma": [
+    0.00157,
+    0.00108
+   ],
+   "xy_mad_mm": [
+    2.11,
+    1.46
+   ],
+   "tcp_z_release": 0.0371,
+   "tcp_z_release_mad_mm": 10.96,
+   "tilt_deg_median": 4.78,
+   "grip_width_mm_median": 33.66,
+   "long_axis_yaw_deg_measured": 165.4,
+   "long_axis_yaw_deg": 0.0
+  },
+  "round peg 1": {
+   "slug": "round_peg_1",
+   "n": 5,
+   "episodes": [
+    1,
+    3,
+    5,
+    7,
+    13
+   ],
+   "xy": [
+    0.02775,
+    -0.18774
+   ],
+   "xy_sigma": [
+    0.00403,
+    0.0028
+   ],
+   "xy_mad_mm": [
+    6.08,
+    4.22
+   ],
+   "tcp_z_release": 0.0463,
+   "tcp_z_release_mad_mm": 4.72,
+   "tilt_deg_median": 4.85,
+   "grip_width_mm_median": 1.56,
+   "long_axis_yaw_deg_measured": 143.7,
+   "long_axis_yaw_deg": 0.0
+  },
+  "round peg 2": {
+   "slug": "round_peg_2",
+   "n": 4,
+   "episodes": [
+    1,
+    2,
+    3,
+    7
+   ],
+   "xy": [
+    0.02862,
+    -0.11617
+   ],
+   "xy_sigma": [
+    0.00301,
+    0.00302
+   ],
+   "xy_mad_mm": [
+    4.05,
+    4.07
+   ],
+   "tcp_z_release": 0.0433,
+   "tcp_z_release_mad_mm": 5.11,
+   "tilt_deg_median": 3.34,
+   "grip_width_mm_median": 6.09,
+   "long_axis_yaw_deg_measured": 166.4,
+   "long_axis_yaw_deg": 0.0
+  },
+  "round peg 3": {
+   "slug": "round_peg_3",
+   "n": 5,
+   "episodes": [
+    2,
+    3,
+    5,
+    7,
+    13
+   ],
+   "xy": [
+    0.26324,
+    -0.0449
+   ],
+   "xy_sigma": [
+    0.00371,
+    0.00116
+   ],
+   "xy_mad_mm": [
+    5.6,
+    1.74
+   ],
+   "tcp_z_release": 0.0387,
+   "tcp_z_release_mad_mm": 3.54,
+   "tilt_deg_median": 5.43,
+   "grip_width_mm_median": 11.04,
+   "long_axis_yaw_deg_measured": 85.5,
+   "long_axis_yaw_deg": 90.0
+  },
+  "round peg 4": {
+   "slug": "round_peg_4",
+   "n": 2,
+   "episodes": [
+    2,
+    5
+   ],
+   "xy": [
+    0.25078,
+    -0.26935
+   ],
+   "xy_sigma": [
+    0.001,
+    0.01119
+   ],
+   "xy_mad_mm": [
+    0.27,
+    10.67
+   ],
+   "tcp_z_release": 0.0479,
+   "tcp_z_release_mad_mm": 1.3,
+   "tilt_deg_median": 4.96,
+   "grip_width_mm_median": 14.79,
+   "long_axis_yaw_deg_measured": 92.9,
+   "long_axis_yaw_deg": 90.0
+  },
+  "small gear": {
+   "slug": "small_gear",
+   "n": 5,
+   "episodes": [
+    2,
+    3,
+    4,
+    5,
+    7
+   ],
+   "xy": [
+    0.33722,
+    -0.22845
+   ],
+   "xy_sigma": [
+    0.001,
+    0.00273
+   ],
+   "xy_mad_mm": [
+    1.27,
+    4.11
+   ],
+   "tcp_z_release": 0.0316,
+   "tcp_z_release_mad_mm": 5.03,
+   "tilt_deg_median": 2.03,
+   "grip_width_mm_median": 19.38,
+   "long_axis_yaw_deg_measured": 166.9,
+   "long_axis_yaw_deg": 0.0
+  },
+  "square peg 1": {
+   "slug": "square_peg_1",
+   "n": 6,
+   "episodes": [
+    2,
+    3,
+    5,
+    6,
+    7,
+    13
+   ],
+   "xy": [
+    0.18149,
+    -0.19358
+   ],
+   "xy_sigma": [
+    0.00179,
+    0.001
+   ],
+   "xy_mad_mm": [
+    2.95,
+    1.64
+   ],
+   "tcp_z_release": 0.036,
+   "tcp_z_release_mad_mm": 5.33,
+   "tilt_deg_median": 2.78,
+   "grip_width_mm_median": 3.21,
+   "long_axis_yaw_deg_measured": 178.4,
+   "long_axis_yaw_deg": 0.0
+  },
+  "square peg 2": {
+   "slug": "square_peg_2",
+   "n": 5,
+   "episodes": [
+    2,
+    3,
+    5,
+    7,
+    13
+   ],
+   "xy": [
+    0.10139,
+    -0.26839
+   ],
+   "xy_sigma": [
+    0.00163,
+    0.001
+   ],
+   "xy_mad_mm": [
+    2.46,
+    1.07
+   ],
+   "tcp_z_release": 0.0432,
+   "tcp_z_release_mad_mm": 6.02,
+   "tilt_deg_median": 7.58,
+   "grip_width_mm_median": 7.47,
+   "long_axis_yaw_deg_measured": 86.5,
+   "long_axis_yaw_deg": 90.0
+  },
+  "square peg 3": {
+   "slug": "square_peg_3",
+   "n": 5,
+   "episodes": [
+    2,
+    3,
+    5,
+    7,
+    13
+   ],
+   "xy": [
+    0.18899,
+    -0.04472
+   ],
+   "xy_sigma": [
+    0.00179,
+    0.001
+   ],
+   "xy_mad_mm": [
+    2.69,
+    1.08
+   ],
+   "tcp_z_release": 0.0405,
+   "tcp_z_release_mad_mm": 2.53,
+   "tilt_deg_median": 3.18,
+   "grip_width_mm_median": 11.37,
+   "long_axis_yaw_deg_measured": 92.2,
+   "long_axis_yaw_deg": 90.0
+  },
+  "square peg 4": {
+   "slug": "square_peg_4",
+   "n": 5,
+   "episodes": [
+    2,
+    4,
+    5,
+    7,
+    13
+   ],
+   "xy": [
+    0.02625,
+    -0.04085
+   ],
+   "xy_sigma": [
+    0.00128,
+    0.00175
+   ],
+   "xy_mad_mm": [
+    1.92,
+    2.63
+   ],
+   "tcp_z_release": 0.0442,
+   "tcp_z_release_mad_mm": 3.0,
+   "tilt_deg_median": 6.67,
+   "grip_width_mm_median": 15.03,
+   "long_axis_yaw_deg_measured": 92.0,
+   "long_axis_yaw_deg": 90.0
+  },
+  "waterproof": {
+   "slug": "waterproof",
+   "n": 4,
+   "episodes": [
+    2,
+    3,
+    5,
+    13
+   ],
+   "xy": [
+    0.18282,
+    -0.12422
+   ],
+   "xy_sigma": [
+    0.00732,
+    0.00197
+   ],
+   "xy_mad_mm": [
+    9.88,
+    2.65
+   ],
+   "tcp_z_release": 0.0607,
+   "tcp_z_release_mad_mm": 6.55,
+   "tilt_deg_median": 3.69,
+   "grip_width_mm_median": 31.02,
+   "long_axis_yaw_deg_measured": 89.0,
+   "long_axis_yaw_deg": 90.0
+  }
+ },
+ "grid": {
+  "origin": [
+   0.03115,
+   -0.04066
+  ],
+  "step_i": [
+   0.07728,
+   -0.00164
+  ],
+  "step_j": [
+   -0.0028,
+   -0.07476
+  ],
+  "pitch_mm": [
+   77.3,
+   74.8
+  ],
+  "angle_i_deg": -1.22,
+  "residual_mm": {
+   "round peg 1": [
+    2.19,
+    2.44
+   ],
+   "round peg 2": [
+    0.26,
+    -0.75
+   ],
+   "round peg 3": [
+    0.26,
+    0.69
+   ],
+   "round peg 4": [
+    -3.81,
+    0.51
+   ],
+   "square peg 1": [
+    1.38,
+    -0.12
+   ],
+   "square peg 2": [
+    1.35,
+    -1.81
+   ],
+   "square peg 3": [
+    3.28,
+    -0.77
+   ],
+   "square peg 4": [
+    -4.9,
+    -0.19
+   ]
+  },
+  "residual_rms_mm": 2.94,
+  "plate_xy_min": [
+   -0.0102,
+   -0.3833
+  ],
+  "plate_size": [
+   0.384,
+   0.384
+  ]
+ }
+}
