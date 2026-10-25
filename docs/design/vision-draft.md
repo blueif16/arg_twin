@@ -108,6 +108,22 @@ Long-video understanding underpins both loops: zooming out and in, actions, sett
 2. **Loop 1 learning:** twin error, calibrated against ground truth, falls across diverse videos. Random videos get label-free scores and plausibility checks.
 3. **Transfer:** skills and routines learned on some tasks or scenes make new ones cheaper from their first attempt.
 
+## Agreed since v1 (2026-10-25 afternoon)
+
+- **Shared skills** (*agreed*). Each job has one skill:
+  - a core `SKILL.md` with a "Choose your path" table by input type (robot logs + cameras, video only, simulator with a state API, prior tested runs) and per-model notes;
+  - `adapters/<input-type>.md`;
+  - `references/<source>.md`.
+  
+  Every model and every data source uses the same set. Probe findings fold into these skills, not into one-off scripts.
+- **Every run gets a watcher and an auditor** (*agreed*). The watcher scores. The auditor reads the reasoning and action traces, starting mid-run, and recommends advance, iterate or roll back. Argon can audit too, from clip + log with a 3-vote majority. It is advisory and never sets the reward.
+- **Retries with observer feedback** (*agreed*). Up to 4 short trials per start:
+  - between trials, Argon reflects: status (from the progress score), cause, fix, one guide line;
+  - during a trial, a fast model nudges when progress stalls;
+  - observers never pass sim truth.
+- **Reward from video** (*agreed*). Argon writes the task spec, progress and success code from one demo. A gate checks it with no model calls: demo ends, starts, failed siblings, generated near-misses. One revision, then it is frozen and used as the evaluator and the feedback status.
+- **LIBERO is the main demo track** (*agreed*). The full chain runs there: demo → reward → practice with feedback. The anchor is the published Argon attempt-1 baseline (43% on LIBERO-10). REASSEMBLE stays as the real-footage benchmark.
+
 ## Open items
 
 - **LIBERO feasibility:** install, boundary, and a 10-episode reproduction of attempt 1 (running).

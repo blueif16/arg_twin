@@ -1,0 +1,8 @@
+# Pins for .venv-libero (LIBERO playground). Separate from the repo's .venv (MuJoCo 3.17, torch cu130):
+#   uv pip install --python .venv-libero/bin/python -c playgrounds/libero/constraints-libero.txt <pkg>
+# torch is the CPU build: LIBERO only needs torch.load for its init states; no GPU in sim workers.
+torch==2.11.0+cpu
+torchvision==0.26.0+cpu
+hf-libero==0.1.4
+robosuite==1.4.0
+bddl==1.0.1

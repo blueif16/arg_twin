@@ -1,5 +1,5 @@
 """Watcher tools for stage B0 (world frame): re-measure the checks independently, find what they can detect,
-and triangulate marked points. The method is in playbook/skills/validate-checks/SKILL.md.
+and triangulate marked points. The method is in playbook/skills/auditor/references/check-validation.md.
 
 measure_b0         B0.overlay_hama1 / B0.overlay_hama2 / B0.overlay_hand / B0.tcp_err_mm, measured as
                    playbook/validation.yaml defines them, on held-out frames drawn with a seed. The draw skips

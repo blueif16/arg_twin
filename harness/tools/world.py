@@ -1,6 +1,6 @@
 """World-frame tools: put the cameras, the board and the tool tip in the robot base frame.
 
-Stage B foundation (playbook/skills/world-frame/SKILL.md). The robot's joint angles are logged every
+Stage B foundation (playbook/skills/build-twin/references/reassemble-world-frame.md). The robot's joint angles are logged every
 frame, so the twin rendered at those angles shows exactly where the arm must appear in each real
 camera; aligning that render with the real frame calibrates the camera.
 
@@ -325,7 +325,7 @@ def check_world_frame(episode: int, n_frames: int = 15, keypoints=None) -> dict:
 
 
 # ----------------------------------------------------------------------------------------------
-# Robot-keypoint calibration (twin/camcal.py; method in playbook/skills/world-frame/SKILL.md)
+# Robot-keypoint calibration (twin/camcal.py; method in playbook/skills/build-twin/references/reassemble-world-frame.md)
 # ----------------------------------------------------------------------------------------------
 def _out(brain: str, run_id: str) -> Path:
     from twin import REPO_DIR

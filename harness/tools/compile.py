@@ -512,27 +512,46 @@ def _handed_back(r: dict) -> bool:
     return code is not None and code != "OK"
 
 
+def _routine_features(r: dict) -> dict | None:
+    """Envelope features of the routine's own segment of one episode (validation.yaml v17 E.envelope_violations): the
+    whole episode when the routine kept it (code OK), its segment up to the hand-back when it handed back. Only the
+    brain's actions after a hand-back are excluded.
+
+    A gate episode is standalone (twin/env.py run_program: only the routine acts, and after a hand-back it ends the
+    episode itself), so its whole record is the routine's segment. A record in which a brain acted after the hand-back
+    (brain_after_handback) must carry envelope.routine_features (twin/envelope.py features_until, cut at the hand-back);
+    without them it has no routine segment to check and is reported as unsegmented, never silently passed."""
+    env = r.get("envelope") or {}
+    if env.get("routine_features"):
+        return env["routine_features"]
+    if _handed_back(r) and r.get("brain_after_handback"):
+        return None
+    return env.get("features") or None
+
+
 def _summ(rows: list[dict], part: str, env: dict | None) -> dict:
-    """Per-part gate summary. Envelope (validation.yaml v16 E.envelope_violations): twin/envelope.py check_routine on
-    the episodes the routine kept to the end; hand-back episodes do not count against its envelope and are reported
-    apart (envelope_handbacks)."""
+    """Per-part gate summary. Envelope (validation.yaml v17 E.envelope_violations): twin/envelope.py check_routine on
+    the routine's own segment of every episode, kept to the end or up to its hand-back (_routine_features); only the
+    brain's later actions are excluded. The handed-back episodes' segments are also shown alone (envelope_handbacks)."""
     from harness.tools.integrity import _summarize
     from twin.envelope import check_routine
     s = _summarize(rows, part, env)
     if env:
         keep = ("violates", "reasons", "counts", "n_episodes")
-        kept = [r for r in rows if not _handed_back(r)]
         back = [r for r in rows if _handed_back(r)]
 
         def verdict(rs):
-            feats = [r["envelope"]["features"] for r in rs if (r.get("envelope") or {}).get("features")]
+            feats = [f for f in (_routine_features(r) for r in rs) if f]
             if not feats:
                 return dict(violates=False, reasons=[], counts={}, n_episodes=0)
             v = check_routine(feats, part, env)
             return {k2: v[k2] for k2 in keep}
-        s["envelope"] = dict(verdict(kept), rule="routine-kept episodes only (code OK); hand-backs excluded",
-                             n_handed_back=len(back))
-        s["envelope_handbacks"] = dict(verdict(back), note="reported, not counted against the routine")
+        unseg = [r.get("start_id") for r in back if _routine_features(r) is None]
+        s["envelope"] = dict(verdict(rows), rule="v17: the routine's segment of every episode (kept to the end, or up "
+                             "to its hand-back); the brain's later actions excluded", n_handed_back=len(back),
+                             unsegmented=unseg)
+        s["envelope_handbacks"] = dict(verdict(back), note="the hand-back episodes' routine segments alone; already "
+                                       "counted in envelope")
     k = sum(1 for r in rows if r.get("counted"))
     codes: dict = {}
     for r in rows:
@@ -545,8 +564,7 @@ def _summ(rows: list[dict], part: str, env: dict | None) -> dict:
                             env_commands=round(sum(r.get("n_commands") or 0 for r in rows) / k, 1) if k else None,
                             brain_calls=0.0 if k else None, tokens=0 if k else None)
     if env:
-        feats = [r["envelope"]["features"] for r in rows if not _handed_back(r) and (r.get("envelope") or {}).get(
-            "features")]
+        feats = [f for f in (_routine_features(r) for r in rows) if f]
         s["envelope_validation_yaml_3"] = _env3(feats, part, env) if feats else None   # the v15 three-feature view
     inval = [f for r in rows for f in r.get("flags", []) if f.get("invalidates")]
     s["g"] = dict(counted_with_invalidating_flag=sum(1 for r in rows if r.get("counted") and any(
@@ -563,8 +581,9 @@ def _summ(rows: list[dict], part: str, env: dict | None) -> dict:
       "practice-start x cousin pairs (every solver/timestep, both stiffness ends); a pass marks it piloted. "
       "mode=scored (callers watcher*/evaluator* only): the frozen held-out starts (heldout_n per part) and the frozen "
       "(held-out start, cousin) pairs, each attempted once; promotes on E.routine_success, E.cousins_success (one-sided "
-      "95% Clopper-Pearson lower bounds vs validation.yaml), E.envelope_violations (six features on the episodes the "
-      "routine kept, nominal and cousins; hand-backs reported apart; incl. the family's B2), G monitors "
+      "95% Clopper-Pearson lower bounds vs validation.yaml), E.envelope_violations (six features on the "
+      "routine's own segment of every episode, nominal and cousins: kept to the end or up to its hand-back, the "
+      "brain's later actions excluded; incl. the family's B2), G monitors "
       "clean and unchanged frozen files, else rejects. mode=review: demotes or marks stale a piloted/promoted version "
       "whose files, evaluator or later record changed. Never records checks: it returns suggested values for a watcher.",
       {"type": "object", "required": ["routine"], "properties": {

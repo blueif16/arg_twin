@@ -1,0 +1,55 @@
+{
+ "version": 1,
+ "declared": "2026-10-25",
+ "env_seed_rule": "LIBERO env seed = 142 + init_state (paper code IRVLUTD/LLM_LIBERO tasks.py ENV_SEED_BASE); 10 no-op settle steps after set_init_state",
+ "note": "Episodes are (task_id, init_state) pairs of LIBERO's 50 fixed init states per task. A split's episodes may be attempted only by sessions serving that split (playgrounds/libero/server.py reset). Scored episodes are attempted once per (run, actor). Outcomes on scored and feasibility splits are never reported to the actor.",
+ "splits": {
+  "feasibility": {
+   "kind": "feasibility",
+   "status": "feasibility, never scored",
+   "suite": "libero_10",
+   "purpose": "Argon attempt-1 feasibility check of the published protocol [llm-libero-2026], 1 episode per task. Never scored, never reused as a scored or practice episode.",
+   "draw": "numpy.random.default_rng(20261025).integers(10, 50) once per task, in task order, from init states 10-49 (0-9 are the scored split)",
+   "episodes": [
+    {"task_id": 0, "init_state": 17},
+    {"task_id": 1, "init_state": 16},
+    {"task_id": 2, "init_state": 35},
+    {"task_id": 3, "init_state": 15},
+    {"task_id": 4, "init_state": 34},
+    {"task_id": 5, "init_state": 22},
+    {"task_id": 6, "init_state": 35},
+    {"task_id": 7, "init_state": 36},
+    {"task_id": 8, "init_state": 22},
+    {"task_id": 9, "init_state": 13}
+   ]
+  },
+  "scored": {
+   "kind": "scored",
+   "status": "scored",
+   "suite": "libero_10",
+   "purpose": "The paper's protocol: init states 0-9 of every LIBERO-10 task, 100 episodes, one attempt each per (run, actor). The same 100 episodes as the published campaign, so attempt 1, attempt N and the paper's per-episode Argon-high outcomes are paired.",
+   "episodes": [
+    {"task_id": 0, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 1, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 2, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 3, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 4, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 5, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 6, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 7, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 8, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+    {"task_id": 9, "init_states": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
+   ]
+  },
+  "smoke": {
+   "kind": "smoke",
+   "status": "scripted install checks only, no brain",
+   "suite": "libero_10",
+   "episodes": [{"task_id": 0, "init_state": 49}, {"task_id": 1, "init_state": 49}, {"task_id": 2, "init_state": 49},
+                {"task_id": 3, "init_state": 49}, {"task_id": 4, "init_state": 49}, {"task_id": 5, "init_state": 49},
+                {"task_id": 6, "init_state": 49}, {"task_id": 7, "init_state": 49}, {"task_id": 8, "init_state": 49},
+                {"task_id": 9, "init_state": 49}]
+  }
+ },
+ "unassigned": "LIBERO-10 init states 10-48 not listed above stay unassigned (kept clean for later scored repeats). LIBERO-90 (all 90 tasks x 50 init states) is the practice pool; a practice split will be declared before the first practice run."
+}

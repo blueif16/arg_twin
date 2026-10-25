@@ -125,6 +125,9 @@ code { font: 12.5px/1.4 var(--mono); }
 .cover h1 { margin: 0; font: 400 clamp(34px, 4vw, 60px)/1.06 var(--serif); letter-spacing: -.01em; max-width: 19ch; text-wrap: balance; }
 .cover .sub { margin: 0; max-width: 46ch; font: 400 18px/1.55 var(--sans); color: var(--ink-2); }
 .cover-r { display: grid; gap: 12px; }
+.clinks { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0; max-width: 46ch; }  /* wraps under the subtitle, never pushes it below the headline */
+.clink { padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); font: 600 12.5px/1.2 var(--mono); color: var(--ink); cursor: pointer; }
+.clink:hover, .clink:focus-visible { border-color: var(--ink-3); outline: none; text-decoration: underline; text-decoration-color: var(--line); }
 .flow { flex: 1; min-height: 0; width: 100%; max-width: 1680px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; }
 .flow .fsc { width: 100%; }
 /* the loop takes the height the heading and the key leave (--head and --keyh are measured), so the overview fits however they wrap */
@@ -185,6 +188,13 @@ code { font: 12.5px/1.4 var(--mono); }
 .fb .box, .gchip .box { fill: var(--paper); stroke: none; }
 .fb.on .box, .gchip.on .box { fill: var(--gold); stroke: var(--gold-line); stroke-width: 1.5; }
 .fb:hover .t, .gchip:hover .t, .fb:focus-visible .t, .gchip:focus-visible .t { text-decoration: underline; }
+/* a track's external anchor on the frame (a published number) and a step that track runs later (dashed, like a planned skill) */
+.achip { cursor: pointer; outline: none; }
+.achip .box { fill: var(--white); stroke: var(--line); stroke-width: 1.5; transition: stroke .15s; }
+.achip:hover .box, .achip:focus-visible .box { stroke: var(--ink-3); stroke-width: 2; }
+.achip .av { font-weight: 700; fill: var(--ink); }
+.nd.plan .bg { stroke-dasharray: 4 3; }
+.nd.plan .s { fill: var(--ink-3); }
 .lead rect.card { fill: var(--white); stroke: var(--line); stroke-width: 1.5; }
 .lead .tile-el { fill: var(--paper); stroke: var(--ink-3); stroke-width: 1.5; }
 .lead .z { font-size: 7px; font-weight: 500; fill: var(--ink-3); }
@@ -210,6 +220,10 @@ code { font: 12.5px/1.4 var(--mono); }
 .tsw-o { display: grid; grid-template-columns: 17px minmax(0, 1fr); column-gap: 7px; align-content: center; height: 46px; padding: 0 10px;
          border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; color: var(--ink-2); }
 .tsw-o .gl { grid-row: 1 / 3; align-self: center; font-size: 16px; }
+.tsw.dense .tsw-o { height: 38px; }  /* four or more tracks: the column still ends above the key */
+.tsw.denser .tsw-o { height: 32px; }  /* five or more */
+.tsw.denser .tsw-o .tn { font-size: 13px; line-height: 1.15; }
+.tsw.denser .tsw-o .tw { font-size: 11px; line-height: 1.2; }
 .tsw-o .tn { font: 700 14px/1.25 var(--mono); letter-spacing: .02em; text-transform: uppercase; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tsw-o .tw { font: 400 12px/1.3 var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tsw-o:hover { background: var(--hover); }
@@ -269,6 +283,11 @@ code { font: 12.5px/1.4 var(--mono); }
 .lpx-n thead td { border-top: 0; padding: 0 0 1px; font-size: 10.5px; font-weight: 500; color: var(--ink-3); }
 .lpx-n td.v .gl { margin-right: 2px; }
 .lpx-n tr[data-open]:hover td.n { text-decoration: underline; text-decoration-color: var(--line); }
+.lpx-r tr.rh td { padding-top: 5px; color: var(--ink-2); }
+.lpx-r tr.rh b { margin-right: 6px; color: var(--ink); letter-spacing: .06em; }
+.lpx-r tr:not(.rh) td.n { padding-left: 12px; color: var(--ink-2); }
+.lpx-r td.v { padding-right: 2px; }
+.lpx-k .none { margin-left: 8px; font: 400 13px/1 var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
 .lpx-k { margin: 7px 0 2px; font: 600 10.5px/1.1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
 .lpx-s { list-style: none; margin: 0; padding: 0; }
 .lpx-s li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; padding: 2px 0; border-top: 1px solid var(--divider); align-items: baseline; }
@@ -380,6 +399,11 @@ code { font: 12.5px/1.4 var(--mono); }
 .big { font: 400 clamp(40px, 4vw, 68px)/1 var(--serif); letter-spacing: -.02em; font-variant-numeric: lining-nums tabular-nums; color: var(--ink); }
 .big.sm { font-size: clamp(32px, 2.8vw, 46px); }
 .s-none .big { color: var(--ink-3); }
+.t-anc .nv > div .ns { margin: 0; }
+.anc-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px 28px; margin: 4px 0 14px; }
+.anc-g > div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); }
+.anc-g .th { margin: 0 0 6px; }
+.anc-g p { margin: 8px 0 0; }
 .ns { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-2); }
 .sp { display: block; width: 100%; height: 34px; margin-top: 10px; overflow: visible; }
 .sp .ln { fill: none; stroke: var(--ink-2); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
@@ -765,8 +789,20 @@ const secKicker = (s) => (NUM[s.id] ? `Step ${NUM[s.id]} of ${MAIN.length}` : s.
 const kick = (s, t = cur) => `${secKicker(s)} · ${tlabel(t)}`;  // every step page and card names the track it shows
 // a section's text for one track: title, claim, numbers, method text, explainer, featured media (status.py track_views)
 const ST = (sec, t = cur) => (V(t).sections || {})[sec.id] || {title: sec.node, claim: '', numbers: [], read_html: '', explain: null, feature: null, checks: 0};
+// another track can run the same steps as its own chain (LIBERO): its node label, navigator word, arrow labels and parts
+// replace these on its view only (status.py _step_labels); `one` shows a several-stage step as one, `planned` a later step
+const SEC_BASE = Object.fromEntries(SECS.map((s) => [s.id, {node: s.node, short: s.short, in: s.in, out: s.out, parts: s.parts}]));
+function applyTrackText() {
+  for (const s of SECS) {
+    const b = SEC_BASE[s.id], o = (V().sections || {})[s.id] || {};
+    s.node = o.node || b.node; s.short = o.short || b.short; s.in = o.in || b.in; s.out = o.out || b.out;
+    s.parts = o.parts || b.parts; s.one = !!o.one_step; s.planned = o.planned || ''; s.pending = o.pending || '';
+  }
+}
+// story.yaml `cards`: named notes for the shown track (no tracks listed: every track), opened from the cover and their step
+const cardsFor = (t = cur) => (S.cards || []).filter((c) => !c.tracks.length || c.tracks.includes(t));
 const partName = (id) => { if (id === 'input') return 'footage';
-  const sec = secOf(id), st = RAW[id]; return (sec && sec.parts[id]) || (sec && sec.stages.length === 1 ? sec.short : st ? st.name : id); };
+  const sec = secOf(id), st = RAW[id]; return (sec && sec.parts[id]) || (sec && (sec.stages.length === 1 || sec.one) ? sec.short : st ? st.name : id); };
 const PAGES = () => ['top', ...SECS.map((s) => s.id), 'ledger', 'builders'];  // the ledger scrolls freely; the builders page closes the run
 const pageName = (id) => (id === 'top' ? 'Overview' : id === 'ledger' ? 'Ledger' : id === 'builders' ? 'Builders' : `${secMark(secById(id))} ${secById(id).short}`.trim());
 const mediaFor = (ids, t = cur) => D.media.filter((m) => m.track === t && ids.includes(m.step) && brainOk(m));  // newest first
@@ -987,6 +1023,7 @@ function loopBody(id, mode) {
   h += `<p class="lpx-o">${esc(lv.given || lv.objective)}</p>`;
   if (lv.given) return `<div class="c1">${h}<p class="lpx-e">Nothing to fit or optimize here for ${esc(tlabel())}: the source supplies it.</p>` +
     (lv.playground ? `<p class="lpx-f"><b>Runs on</b> ${esc(lv.playground)}</p>` : '') + '</div>';
+  let shownRes = false;
   if (lv.headline.length) {  // one brain: glyph, value, target, learning curve; several: a value column per brain, never merged
     const head = one || !bs.length ? '' : `<thead><tr><td class="n"></td>${bs.map((b) => `<td class="v bh">${esc(tag(b))}</td>`).join('')}<td class="t"></td></tr></thead>`;
     h += `<table class="lpx-n">${head}<tbody>` + lv.headline.map(([cid, lab]) => {
@@ -1004,14 +1041,38 @@ function loopBody(id, mode) {
       return `<tr class="s-${k[0]}"${open} title="${esc(ttl)}"><td class="g"><b class="gl">${k[1]}</b></td><td class="n">${name}</td>` +
         `<td class="v">${cv ? fmt(latest(cv).value) : '—'}</td><td class="t">${esc(c.target_text)}</td><td class="sp">${curve}</td></tr>`;
     }).join('') + '</tbody></table>';
-  } else h += `<p class="lpx-e">No checks on this loop yet for ${esc(tlabel())}.</p>`;
-  const rows = lp.steps.map((x) => {
-    const per = bs.map((b) => [b, PROG(b)[x]]).filter(([, p]) => p && (p.lessons || p.params.length || p.tools.length || p.routines.length || p.runs.length));
+  } else {
+    // no checks on this loop for the track yet: the numbers of the latest result each shown brain published on each of
+    // its steps, as published (with their evidence in the result's card), never as a gated check's verdict
+    const res = loopSecs(lp).flatMap((s) => bs.map((b) => {
+      const ms = D.media.filter((m) => m.track === cur && s.stages.includes(m.step) && m.brain === b && m.metrics.length);
+      return [s, b, ms.find((m) => m.featured) || ms[0]];
+    })).filter(([, , m]) => m);
+    shownRes = res.length > 0;
+    if (res.length) {  // the panel shows each result's first two numbers; the loop's card shows up to four and opens the result
+      h += `<table class="lpx-n lpx-r"><tbody>` + res.map(([s, b, m]) =>
+        `<tr class="rh"${full ? ` data-open="media|${esc(m.id)}"` : ''} title="${esc(m.title)}"><td class="n" colspan="2"><b>${esc(`${secMark(s)} ${s.short}`.trim().toUpperCase())}</b>` +
+        `${one ? '' : ` <span class="bt">${esc(tag(b))}</span>`} ${esc(m.title)}</td></tr>` +
+        m.metrics.slice(0, full ? 4 : 2).map((x) => { const k = x.state ? CS[x.state] : null, v = typeof x.v === 'number' ? fmt(x.v) : String(x.v);
+          return `<tr title="${esc(`${x.name || x.k}: ${v}`)}"><td class="n">${esc(x.name || x.k)}</td><td class="v">` +
+            `${k ? `<b class="gl s-${k[0]}">${k[1]}</b> ` : ''}${esc(v)}</td></tr>`; }).join('')).join('') + '</tbody></table>' +
+        `<p class="lpx-e">From published results; no gated check on this loop yet for ${esc(tlabel())}.</p>`;
+    } else h += `<p class="lpx-e">No checks on this loop yet for ${esc(tlabel())}.</p>`;
+  }
+  // one line per step as the track names it: a step shown as one (its stages merged) gets one line
+  const groups = [];
+  for (const x of lp.steps) { const k = stepTag(x), g = groups.find((y) => y.k === k); if (g) g.ids.push(x); else groups.push({k, ids: [x]}); }
+  let none = 0;
+  const rows = groups.map(({k: stag, ids}) => {
+    const per = bs.flatMap((b) => ids.map((x) => [b, PROG(b)[x]])).filter(([, p]) => p && (p.lessons || p.params.length || p.tools.length || p.routines.length || p.runs.length));
+    if (!per.length) none++;
     const body = per.length ? per.map(([b, p]) => (one ? '' : `<span class="bt">${esc(tag(b))}</span> `) + stepFacts(p, full)).join(full ? '<br>' : ' ') : '<span class="none">nothing yet</span>';
     const ttl = per.map(([b, p]) => (one ? '' : tag(b) + ': ') + stepPlain(p)).join(' | ');
-    return `<li${ttl ? ` title="${esc(ttl)}"` : ''}><b>${esc(stepTag(x))}</b><span>${body}</span></li>`;
+    return `<li${ttl ? ` title="${esc(ttl)}"` : ''}><b>${esc(stag)}</b><span>${body}</span></li>`;
   }).join('');
-  h = `<div class="c1">${h}</div><div class="c2"><p class="lpx-k">Optimized so far</p><ul class="lpx-s">${rows}</ul>`;
+  // beside published results, a loop whose steps optimized nothing yet says so in one line, so the panel stays short
+  h = `<div class="c1">${h}</div><div class="c2">` + (shownRes && !full && none === groups.length
+    ? `<p class="lpx-k">Optimized so far <span class="none">nothing yet</span></p>` : `<p class="lpx-k">Optimized so far</p><ul class="lpx-s">${rows}</ul>`);
   if (full && lv.curve && checkOf(lv.curve)) h += `<p class="note" style="margin:10px 0 0">The trend glyph follows ` +
     `${esc((lv.headline.find(([c]) => c === lv.curve) || [, checkOf(lv.curve).name])[1])}, first record to latest. Lessons come from the skills' ` +
     `dated Lessons, versions from the records and run folders, for ${esc(bs.map(label).join(' and ') || 'no brain')} only.</p>`;
@@ -1052,6 +1113,27 @@ function loopRegions(pos, rows, bottoms, leadX) {
   return {back, labels};
 }
 
+// the external anchor (story.yaml `tracks: <id>: anchor`, status.py _anchor): the published number, and our own run of the
+// same protocol counted from its episode log. Ours shows only for its own brain, says "so far" and is never scored here.
+function anchorWords(an) {
+  const o = an.ours, who = o.brain ? label(o.brain) : '', pl = o.planned ? ` of ${o.planned} planned` : '';
+  if (o.brain && sel !== 'all' && sel !== o.brain) return {c: 'none', g: '○', short: `${who} only`, long: `run by ${who}, not shown for ${label(sel)}`, n: null};
+  if (o.n == null) return {c: 'none', g: '○', short: 'not started', long: 'not started', n: null};
+  const done = o.planned && o.n >= o.planned;
+  const short = o.n ? `${o.successes} of ${o.n} ${done ? 'done' : 'so far'}` : 'none finished yet';
+  return {c: done ? 'track' : 'prog', g: done ? '~' : '◐', n: o.n, short,
+    long: `${o.n ? `${o.successes} of ${o.n} episodes succeeded${done ? '' : ' so far'}` : 'no episode finished yet'}${pl ? ` (${o.n}${pl})` : ''}` +
+      `${who ? `, ${who}` : ''}; not scored`};
+}
+function anchorTile(sec) {  // on the anchor's step page: the published number beside ours so far
+  const an = V().anchor;
+  if (!an || an.step !== sec.id) return '';
+  const a = anchorWords(an);
+  return `<div class="tile t-num t-anc" data-open="anchor|${esc(cur)}"><p class="nl">${esc(an.label)}: ${esc(an.published.text)}</p>` +
+    `<div class="nv"><div><b class="big sm">${esc(an.published.value)}</b><span class="ns">published [${esc(an.published.ref)}]</span></div>` +
+    `<div class="s-${a.c}"><b class="big sm">${a.n ? `${an.ours.successes}/${a.n}` : '—'}</b><span class="ns"><b class="gl">${a.g}</b> ours, ${esc(a.n ? (a.short.endsWith('done') ? 'done' : 'so far') : a.short)}</span></div></div>` +
+    `<p class="ns">${esc(an.ours.text || 'Our run of the same protocol')}; not scored until a check records it.</p>${xp('The comparison')}</div>`;
+}
 function arrowPath(d, on, cls = '') {
   return on ? `<path class="ar gold ${cls}" d="${d}" marker-end="url(#mk-gold)"/><path class="fw ${cls}" data-flow d="${d}"/>`
     : `<path class="ar tan ${cls}" d="${d}" marker-end="url(#mk-tan)"/>`;
@@ -1088,14 +1170,16 @@ function nodeSVG(sec, x, w, on) {
     : `<text class="t" x="${cx}" y="${y + 58}" text-anchor="middle">${esc(name)}</text>`;
   // work with no measured check says so in words, never as a count of checks that pass
   const un = bs.length === 1 && secState(sec, bs[0]) === 'unscored';
-  const lines = !bs.length ? ['not started'] : un ? ['in progress', 'not scored yet'] : bs.map((b) => {
+  // a step the shown track runs later (story.yaml `planned`): drawn like a planned skill until work lands on it
+  const plan = (sec.planned || sec.pending) && st === 'not_started';
+  const lines = plan ? (sec.pending ? wrapLines(sec.pending, 18, 2) : ['planned', sec.planned === 'planned' ? '' : sec.planned].filter(Boolean)) : !bs.length ? ['not started'] : un ? ['in progress', 'not scored yet'] : bs.map((b) => {
     const k = secCounts(sec, b), s2 = secState(sec, b);
     const txt = s2 === 'not_started' ? 'not started' : s2 === 'unscored' ? 'not scored' : k.gated ? `${k.passed}/${k.gated} checks pass` : `${k.measured} tracked`;
     return (bs.length > 1 ? tag(b) + ' ' : '') + txt;
   });
-  const y0 = y + (un ? 80 : bs.length > 1 ? 82 : 88), dy = un ? 14 : 15;
-  t += lines.map((l, i) => `<text class="s${un || bs.length > 1 || l.length > 18 ? ' xs' : ''}" x="${cx}" y="${y0 + i * dy}" text-anchor="middle">${esc(l)}</text>`).join('');
-  if (sec.stages.length > 1) {
+  const y0 = y + (un || (plan && lines.length > 1) ? 80 : bs.length > 1 ? 82 : 88), dy = un || plan ? 14 : 15;
+  t += lines.map((l, i) => `<text class="s${un || plan || bs.length > 1 || l.length > 18 ? ' xs' : ''}" x="${cx}" y="${y0 + i * dy}" text-anchor="middle">${esc(l)}</text>`).join('');
+  if (sec.stages.length > 1 && !sec.one) {
     const b0 = bs[0];
     const pips = sec.stages.map((id, i) => {
       const v = b0 ? stageView(b0, id) : null, s2 = v ? v.state : 'not_started';
@@ -1104,7 +1188,7 @@ function nodeSVG(sec, x, w, on) {
     t += `<text class="pips" x="${cx}" y="${y + h - 12}" text-anchor="middle">${pips}</text>`;
   }
   const aria = `Step ${secMark(sec)}, ${sec.node}: ${lines.join(', ')}${on ? ', latest work' : ''}. Open this step.`;
-  return `<g class="nd s-${cls}${on ? ' on' : ''}${st === 'not_started' ? ' idle' : ''}${st === 'regressed' ? ' regr' : ''}" data-go="${esc(sec.id)}" tabindex="0" role="link" aria-label="${esc(aria)}">` +
+  return `<g class="nd s-${cls}${on ? ' on' : ''}${st === 'not_started' ? ' idle' : ''}${plan ? ' plan' : ''}${st === 'regressed' ? ' regr' : ''}" data-go="${esc(sec.id)}" tabindex="0" role="link" aria-label="${esc(aria)}">` +
     `<title>${esc(aria)}</title><rect class="bg" x="${x}" y="${y}" width="${w}" height="${h}" rx="12"/>${t}</g>`;
 }
 function stateWords(sec, t = cur) {
@@ -1116,7 +1200,8 @@ function stateWords(sec, t = cur) {
 }
 // the data-source switcher: one row per track (status glyph and words, passing gated checks per brain, never merged)
 // an active track's ◐ is its status (the tooltip says "active"); a track not started says so in words
-const TSW_ROW = 48;
+const TSW_ROW = 48, TSW_DENSE = 40, TSW_DENSER = 34;  // row pitch; denser with more tracks, so the input column fits FH
+const tswRow = () => (TRACKS.length > 4 ? TSW_DENSER : TRACKS.length > 3 ? TSW_DENSE : TSW_ROW);
 function trackSub(t) {
   if (trackState(t) === 'not_started') return trackWords(t);
   const bs = shown(t.id), counts = bs.map((b) => {
@@ -1133,8 +1218,8 @@ function switcherFO(x, y, w) {
     return `<button type="button" class="tsw-o${st === 'not_started' ? ' plan' : ''}" data-track="${esc(t.id)}" aria-pressed="${on}" title="${esc(aria)}" aria-label="${esc(aria)}">` +
       `<b class="gl s-${c}">${g}</b><span class="tn">${esc(trunc(t.label, 16))}</span><span class="tw">${esc(sub)}</span></button>`;
   }).join('');
-  return `<foreignObject class="tsw-fo" x="${x}" y="${y}" width="${w}" height="${TRACKS.length * TSW_ROW + 6}">` +
-    `<div class="tsw" role="group" aria-label="Data source: the track the whole page shows">${rows}</div></foreignObject>`;
+  return `<foreignObject class="tsw-fo" x="${x}" y="${y}" width="${w}" height="${TRACKS.length * tswRow() + 6}">` +
+    `<div class="tsw${TRACKS.length > 4 ? ' dense denser' : TRACKS.length > 3 ? ' dense' : ''}" role="group" aria-label="Data source: the track the whole page shows">${rows}</div></foreignObject>`;
 }
 function inputSVG() {  // the real recordings: a stack of clips you can open (or a film icon), then the data-source switcher
   const clips = footage(), inp = V().input;
@@ -1154,7 +1239,7 @@ function inputSVG() {  // the real recordings: a stack of clips you can open (or
     }
   }
   let y = MID + 64;
-  if (TRACKS.length > 1) { h += switcherFO(10, y, 204); y += TRACKS.length * TSW_ROW + 6 + 18; } else y += 10;
+  if (TRACKS.length > 1) { h += switcherFO(10, y, 204); y += TRACKS.length * tswRow() + 6 + 18; } else y += 10;
   const note = wrapLines(inp.note, 24, 2);
   h += note.map((l, i) => `<text class="s xs" x="112" y="${y + i * 15}" text-anchor="middle">${esc(l)}</text>`).join('');
   y += note.length * 15 + 4;
@@ -1186,7 +1271,7 @@ function flowSVG() {
   const leadX = act && pos[act] && leads.length ? pos[act].cx : null;
   let back = '', front = '';
   // the frame: the loop Argon runs; skills that serve every step (`steps: [loop]`) sit beside its subtitle
-  const fsub = 'Argon plans, the twin tests, the harness judges every number';
+  const fsub = S.frame_note || 'Argon plans, the twin tests, the harness judges every number';
   back += `<rect class="frame" x="${FX0}" y="${FY0}" width="${FX1 - FX0}" height="${TY + TH + 20 - FY0}" rx="20"/>`;
   const regions = loopRegions(pos, rows, bottoms, leadX);  // the two loops, behind everything inside the frame
   back += regions.back;
@@ -1195,14 +1280,26 @@ function flowSVG() {
     `<text class="fs" x="${FX0 + 42}" y="${FY0 + 40}">${esc(fsub)}</text>` +
     skillRow(D.loop_skills, 'skills|loop', 300).draw(FX0 + 54 + tw(fsub, 13), FY0 + 40 - 15);
   const gs = SECS.find((s) => s.role === 'integrity');
+  let gLeft = FX1 - 28;
   if (gs) {  // integrity sits on the frame: it guards everything inside; its skills hang under it
     const st = secWorst(gs), w = tw(`${gs.node.toUpperCase()} ${SS[st][1]} ${stateWords(gs)}`, 14) + 36, gx = FX1 - 28 - w;
+    gLeft = gx;
     front += `<g class="gchip${act === gs.id ? ' on' : ''}" data-go="${esc(gs.id)}" tabindex="0" role="link" aria-label="${esc(`${gs.node}: ${stateWords(gs)}. Open it.`)}">` +
       `<rect class="box" x="${gx}" y="${FY0 - 15}" width="${w}" height="30" rx="8"/>` +
       `<text class="t md" x="${gx + 18}" y="${FY0 + 6}">${esc(gs.node.toUpperCase())} <tspan class="gl s-${secClass(gs, st)}">${SS[st][1]}</tspan>` +
       `<tspan class="s" dx="6">${esc(stateWords(gs))}</tspan></text></g>`;
     const row = skillRow(gs.skills, `skills|${gs.id}`, 360);
     front += row.draw(FX1 - 28 - row.w, FY0 + 22);
+  }
+  const an = V().anchor;
+  if (an) {  // the track's external anchor sits on the frame beside integrity: a published number the loop answers to
+    const a = anchorWords(an), name = an.label.toUpperCase(), rest = `published ${an.published.value} · ours ${a.g} ${a.short}`;
+    const w = tw(name, 15) + tw(rest, 13) + 46, ax = gLeft - 16 - w;
+    front += `<g class="achip" data-open="anchor|${esc(cur)}" tabindex="0" role="button" aria-label="${esc(`${an.label}: published ${an.published.value} (${an.published.text} [${an.published.ref}]); ours: ${a.long}. Open the comparison.`)}">` +
+      `<title>${esc(`${an.published.text} [${an.published.ref}]. Ours: ${a.long}.`)}</title>` +
+      `<rect class="box" x="${ax}" y="${FY0 - 15}" width="${w}" height="30" rx="8"/>` +
+      `<text class="t md" x="${ax + 18}" y="${FY0 + 6}">${esc(name)}<tspan class="s" dx="10">published </tspan><tspan class="s av">${esc(an.published.value)}</tspan>` +
+      `<tspan class="s"> · ours </tspan><tspan class="gl s-${a.c}">${a.g}</tspan><tspan class="s"> ${esc(a.short)}</tspan></text></g>`;
   }
   const first = MAIN[0], last = MAIN[MAIN.length - 1];
   front += inputSVG();
@@ -1279,7 +1376,9 @@ function flowSVG() {
 }
 function cover() {
   const none = !measuredBy(shown()) && !!activeSec();  // work on record but no measurement yet: the key says so
-  return `<div class="cover-head"><h1>${esc(S.title)}</h1><div class="cover-r"><p class="sub">${esc(S.subtitle)}</p></div></div>` +
+  const cl = cardsFor().filter((c) => c.cover !== false);  // `cover: false`: only on its step
+  return `<div class="cover-head"><h1>${esc(S.title)}</h1><div class="cover-r"><p class="sub">${esc(S.subtitle)}</p>` +
+    (cl.length ? `<p class="clinks">${cl.map((c) => `<button type="button" class="clink" data-open="card|${esc(c.id)}" aria-haspopup="dialog">${esc(c.label)}</button>`).join('')}</p>` : '') + '</div></div>' +
     (S.error ? `<p class="warn">${esc(S.error)}</p>` : '') +
     `<figure class="flow"><div class="fsc">${flowSVG()}</div>` +
     `<figcaption class="key"><span><i class="kf"></i>data has passed</span><span><i class="ki"></i>nothing yet</span><span><i class="ko"></i>latest work</span>` +
@@ -1304,6 +1403,19 @@ function miniFlow(sec) {
     nl.map((l, i) => `<text class="mt" x="270" y="${37 - (nl.length - 1) * 8 + i * 16}" text-anchor="middle">${esc(l)}</text>`).join('') +
     (out ? ar(344, 388) + lab(R, 404, 'start') : '') + '</svg>';
 }
+// a step's stage chips; a track that names the step its own way (status.py _step_labels) names them by its parts, and a
+// step it shows as one gets one chip, in the worst state of its stages
+function introChips(sec) {
+  const o = (V().sections || {})[sec.id] || {};
+  if (!o.parts && !o.one_step) return sec.stages.map((id) => stageChip(stageOf(id))).join('');
+  const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+  if (sec.one) {
+    const ids = sec.stages, bs = shown(), rank = (id) => WORST.indexOf(((bs[0] && stageView(bs[0], id)) || {state: 'not_started'}).state);
+    const lead = ids.reduce((a, x) => (rank(x) < rank(a) ? x : a), ids[0]);
+    return stageChip({...stageOf(lead), name: cap(sec.node)});
+  }
+  return sec.stages.map((id) => stageChip({...stageOf(id), name: sec.parts[id] ? cap(sec.parts[id]) : stageOf(id).name})).join('');
+}
 function stageChip(s) {
   const bs = shown();
   const parts = bs.length ? bs.map((b) => {
@@ -1316,9 +1428,10 @@ function stageChip(s) {
 function introTile(sec) {
   const tx = ST(sec), clips = okClips(tx.explain);
   return `<div class="t-intro">${miniFlow(sec)}<p class="kick">${esc(kick(sec))}</p><h2>${esc(tx.title)}</h2>${tx.claim ? `<p class="claim">${esc(tx.claim)}</p>` : ''}` +
-    `<div class="chips">${sec.stages.map((id) => stageChip(stageOf(id))).join('')}</div>` +
+    `<div class="chips">${introChips(sec)}</div>` +
     `<div class="btns"><button type="button" class="btn" data-open="method|${esc(sec.id)}" aria-haspopup="dialog">${XP}Method and lessons</button>` +
-    (clips.length ? `<button type="button" class="btn" data-open="explain|${esc(sec.id)}" aria-haspopup="dialog">${XP}Watch ${clips.length} clip${clips.length === 1 ? '' : 's'}</button>` : '') + '</div></div>';
+    (clips.length ? `<button type="button" class="btn" data-open="explain|${esc(sec.id)}" aria-haspopup="dialog">${XP}Watch ${clips.length} clip${clips.length === 1 ? '' : 's'}</button>` : '') +
+    cardsFor().filter((c) => c.step === sec.id).map((c) => `<button type="button" class="btn" data-open="card|${esc(c.id)}" aria-haspopup="dialog">${XP}${esc(c.label)}</button>`).join('') + '</div></div>';
 }
 function checkRow(c, bs) {
   const lines = bs.map((b) => [b, checkView(b, c.id)]).filter(([, cv]) => cv);
@@ -1436,7 +1549,7 @@ function costBlock(b) {
 const costTile = () => `<div class="tile t-cost" data-open="cost|"><p class="th">Cost per brain</p>${(sel === 'all' ? D.brains : [sel]).map(costBlock).join('')}${xp('Cost and calls')}</div>`;
 function chapter(sec) {
   const items = mediaFor(sec.stages);
-  const side = ST(sec).numbers.map(numTile).join('') + (sec.show.includes('cost') ? costTile() : '') + logTile(sec);
+  const side = anchorTile(sec) + ST(sec).numbers.map(numTile).join('') + (sec.show.includes('cost') ? costTile() : '') + logTile(sec);
   return `<article class="ch" id="ch-${esc(sec.id)}" data-sec="${esc(sec.id)}" aria-label="${esc(kick(sec) + ': ' + ST(sec).title)}">` +
     `<div class="bento${items.length > 1 ? '' : ' solo'}">${introTile(sec)}${heroTile(sec, items)}${items.length > 1 ? reelTile(sec, items) : ''}` +
     `${checksTile(sec)}<div class="side">${side}</div></div></article>`;
@@ -1750,6 +1863,26 @@ const SHEETS = {
     return {kicker: `Cost · ${tlabel()}`, title: 'Cost per brain and tool calls',
       body: `<div class="box">${(sel === 'all' ? D.brains : [sel]).map(costBlock).join('')}</div><h3>Tool calls by caller</h3>${callers()}`};
   },
+  card(id) {  // a named note from story.yaml `cards`
+    const c = (S.cards || []).find((x) => x.id === id), sec = c && c.step ? secById(c.step) : null;
+    if (!c) return null;
+    const figs = (c.figures || []).filter((f) => f.exists && f.type === 'image');
+    const body = figs.map((f) => `<figure class="f1"><div class="mf tall">${img(f, c.title)}</div></figure>`).join('') + `<div class="prose">${c.text_html}</div>` + (sec ? `<div class="btns" style="margin-top:22px"><button type="button" class="btn" data-go="${esc(sec.id)}">Go to ${esc(secKicker(sec).toLowerCase())}, ${esc(sec.node.toLowerCase())}</button></div>` : '');
+    return {kicker: `${c.kicker || (sec ? secKicker(sec) : 'Note')} · ${tlabel()}`, title: c.title, body};
+  },
+  anchor(id) {  // a track's external anchor: the published number and ours, side by side, never merged
+    const an = (V(id) || {}).anchor;
+    if (!an) return null;
+    const a = anchorWords(an), sec = secById(an.step), p = an.published, o = an.ours;
+    let h = `<div class="anc-g"><div><p class="th">Published</p><b class="big">${esc(p.value)}</b><p>${esc(p.text)} <span class="note">[${esc(p.ref)}]</span></p>` +
+      (p.detail ? `<p class="note">${esc(p.detail)}</p>` : '') + '</div>' +
+      `<div class="s-${a.c}"><p class="th">Ours</p><b class="big">${a.n ? `${o.successes}/${a.n}` : '—'}</b><p><b class="gl">${a.g}</b> ${esc(a.long)}</p>` +
+      (o.text ? `<p>${esc(o.text)}${o.run_id ? ` <code>${esc(o.run_id)}</code>` : ''}</p>` : '') + (o.detail ? `<p class="note">${esc(o.detail)}</p>` : '') + '</div></div>';
+    h += `<p class="note">The published number is the paper's, not ours. Ours is counted from the run's episode log as episodes finish, by LIBERO's own goal predicate; it becomes a result only when a check records it.</p>`;
+    if (an.sources.length) h += `<p class="note">Sources: ${an.sources.map(evLink).join(', ')}</p>`;
+    if (sec) h += `<div class="btns" style="margin-top:22px"><button type="button" class="btn" data-go="${esc(sec.id)}" data-track="${esc(id)}">Go to ${esc(secKicker(sec).toLowerCase())}, ${esc(sec.node.toLowerCase())}</button></div>`;
+    return {kicker: `${an.label} · ${tlabel(id)}`, title: `${p.text.split(',')[0]}: published and ours`, body: h};
+  },
   loop(id) {  // a self-optimization loop: the panel's content in full, with links to its steps; from the bottom on touch screens
     const lp = loopById(id), lv = LV(id);
     if (!lp || !lv) return null;
@@ -1818,7 +1951,7 @@ function placeLoop(R, W, H, strict) {  // strict: the page's headline and subtit
   const lines = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); return [...rg.getClientRects()]; };  // text, not its block
   const heads = $$('#cover .cover-head h1, #cover .cover-head .sub').flatMap((e) => lines(e).map((r) => box(r, 4)));
   if (strict) hard.push(...heads);
-  const soft = heads.map((b) => [b, 10]).concat([['.lead', 1.5], ['.tnote-g', 2], ['.tsw', 2], ['.clip', 2], ['.lpl', 3], ['.sk', 1], ['text.ft', 1], ['text.fs', 1], ['text.lbl', 1],
+  const soft = heads.map((b) => [b, 10]).concat([['.lead', 1.5], ['.achip', 3], ['.tnote-g', 2], ['.tsw', 2], ['.clip', 2], ['.lpl', 3], ['.sk', 1], ['text.ft', 1], ['text.fs', 1], ['text.lbl', 1],
       ['text.hint', 1], ['.arm', 1], ['.io', 1], ['.key', 0.6], ['.lp-r', 0.2]].flatMap(([q, w]) => $$('#cover ' + q).map((e) => [box(e.getBoundingClientRect()), w])));
   // spots along each side, every 6 px, plus spots flush against each obstacle and the region's own edges
   const span = (lo, hi, snaps) => { const out = []; for (let v = lo; v <= hi; v += 6) out.push(v); return out.concat(snaps.filter((v) => v >= lo && v <= hi)); };
@@ -1926,6 +2059,7 @@ function headerCtl() {
   $('#steps').innerHTML = dock();
 }
 function renderAll() {
+  applyTrackText();
   hideLoop();
   headerCtl();
   $('#cover').innerHTML = cover();
@@ -2079,7 +2213,7 @@ function intro() {  // one orchestrated moment: the loop draws itself on first l
   paths.forEach((p) => { const L = p.getTotalLength(); gsap.set(p, {strokeDasharray: `${L} ${L}`, strokeDashoffset: L}); });
   gsap.timeline({defaults: {ease: 'power2.out'}})
     .from('#cover .cover-head > *', {y: 12, opacity: 0, duration: 0.5, stagger: 0.08})
-    .from($$('.frame, .lp-r, .lpl, .io, .nd, .lead, .tnote-g, .tsw-fo, .fb, .gchip, .arm, .clip, .sk, text.lbl', svg), {opacity: 0, duration: 0.4, stagger: 0.03}, '-=0.25')
+    .from($$('.frame, .lp-r, .lpl, .io, .nd, .lead, .tnote-g, .tsw-fo, .fb, .gchip, .achip, .arm, .clip, .sk, text.lbl', svg), {opacity: 0, duration: 0.4, stagger: 0.03}, '-=0.25')
     .to(paths, {strokeDashoffset: 0, duration: 0.4, stagger: 0.06, ease: 'none', onComplete: () => gsap.set(paths, {clearProps: 'strokeDasharray,strokeDashoffset'})}, '-=0.3')
     .from($$('[data-flow]', svg), {opacity: 0, duration: 0.4}, '-=0.1');
 }

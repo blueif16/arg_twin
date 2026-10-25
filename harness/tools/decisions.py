@@ -1,4 +1,4 @@
-"""Decision-point log for scene reconstruction (playbook/skills/reconstruct-scene).
+"""Decision-point log for scene reconstruction (playbook/skills/build-twin).
 
 At every reconstruction step the brain writes one record: what it looked at, its native hypothesis
 (with numbers) before any precision tool, the tool it then called and what came back, the error in

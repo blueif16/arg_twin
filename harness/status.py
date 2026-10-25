@@ -139,6 +139,21 @@ def _track(t: dict) -> dict:
 INPUT = "input"  # the step name of the loop's start: a track's real footage
 
 
+def _story_tracks() -> list[dict]:
+    """Tracks story.yaml defines itself (`tracks: <id>: define: {name, scope, status, why, runs}`), for a track whose
+    validation.yaml entry has to wait (a frozen run hashes validation.yaml). validation.yaml always wins over these."""
+    try:
+        raw = yaml.safe_load(story_path().read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    out = []
+    for tid, t in (raw.get("tracks") or {}).items():
+        d = (t or {}).get("define") if isinstance(t, dict) else None
+        if isinstance(d, dict):
+            out.append(dict(d, id=str(tid)))
+    return out
+
+
 def load_validation(path: Path | None = None) -> dict:
     """Stages, checks and data tracks.
 
@@ -153,6 +168,11 @@ def load_validation(path: Path | None = None) -> dict:
         tracks = [_track({"id": "main", "name": "Recordings", "scope": "the loop"})]
     primary = tracks[0]["id"]
     warnings = []
+    for t in _story_tracks():  # provisional: defined in story.yaml until validation.yaml lists it (then that wins)
+        if t["id"] not in {x["id"] for x in tracks}:
+            tracks.append(dict(_track(t), provisional=True))
+            warnings.append(f"track {t['id']!r} is defined in story.yaml (`define:`), not in validation.yaml: "
+                            "provisional, with no checks until validation.yaml lists it")
     stages = []
     for s in raw.get("stages", []):
         track = str(s.get("track") or primary)
@@ -796,13 +816,42 @@ def load_story(val: dict) -> dict:
             labels[str(tid)] = label
     inp, outp = _end(raw.get("input"), "Real footage"), _end(raw.get("output"), "Real arm")
     loops = _loops(raw.get("loops"), val, sections, warnings)
+    cards = _cards(raw.get("cards"), {t["id"] for t in val["tracks"]}, {s["id"] for s in sections}, warnings)
     return {"brand": str(raw.get("brand") or "Bot18"), "title": str(raw.get("title") or ""),
-            "subtitle": str(raw.get("subtitle") or ""), "footer": str(raw.get("footer") or ""),
+            "subtitle": str(raw.get("subtitle") or ""), "footer": str(raw.get("footer") or ""), "cards": cards,
+            "frame_note": str(raw.get("frame_note") or ""),
             "builders": _builders(raw.get("builders")), "input": inp, "output": outp,
             "sections": sections, "track_labels": labels,
             "loops": [{k: lp[k] for k in ("id", "label", "steps", "objective")} for lp in loops],
             "views": track_views(val, sections, inp, outp, labels, over, warnings, loops),
             "warnings": warnings, "error": error, "path": rel(path)}
+
+
+# story.yaml `cards`: a few named notes the presenter opens from the cover (and from a step page when they name a step):
+# "Not proven yet", a comparison with a published method. Each: id, label (the link, at most 28 characters), title, text
+# (Markdown), tracks (default every track), step (optional section id). Pending numbers are written as pending, never guessed.
+def _cards(raw, track_ids: set, sec_ids: set, warnings: list) -> list[dict]:
+    out = []
+    for i, c in enumerate(raw if isinstance(raw, list) else []):
+        if not isinstance(c, dict) or not c.get("id"):
+            warnings.append(f"cards[{i}]: needs an id")
+            continue
+        tr = c.get("tracks")
+        tracks = [str(x) for x in ([tr] if isinstance(tr, str) else tr or [])]
+        if bad := [x for x in tracks if x not in track_ids]:
+            warnings.append(f"cards.{c['id']}.tracks: {bad} are not data tracks")
+        step = str(c.get("step") or "")
+        if step and step not in sec_ids:
+            warnings.append(f"cards.{c['id']}.step: {step!r} is not a story section")
+        label = str(c.get("label") or c.get("title") or c["id"])
+        if len(label) > 28:
+            warnings.append(f"cards.{c['id']}.label: longer than 28 characters")
+        out.append({"id": str(c["id"]), "label": label, "title": str(c.get("title") or label),
+                    "kicker": str(c.get("kicker") or ""), "text_html": md_html(str(c.get("text") or "")),
+                    "tracks": [x for x in tracks if x in track_ids], "step": step if step in sec_ids else "",
+                    "cover": c.get("cover", True) is not False,
+                    "figures": [media_file(str(x)) for x in ([c["figure"]] if isinstance(c.get("figure"), str) else c.get("figure") or [])]})
+    return out
 
 
 def _first_check(val: dict, ids: list[str]) -> str | None:
@@ -920,9 +969,12 @@ def track_views(val: dict, sections: list, inp: dict, outp: dict, labels: dict, 
                                "numbers": nums or base["numbers"],
                                "read_html": md_html(str(ov["read"])) if ov.get("read") else base["read_html"],
                                "explain": _explain(ov["explain"]) if ov.get("explain") else base["explain"],
-                               "feature": ov.get("feature") or base["feature"], "checks": len(mine)}
+                               "feature": ov.get("feature") or base["feature"], "checks": len(mine),
+                               **({} if t["primary"] else _step_labels(ov, f"tracks.{t['id']}.sections.{sec['id']}", warnings))}
         oi = o.get("input") if isinstance(o.get("input"), dict) else {}
         oo = o.get("output") if isinstance(o.get("output"), dict) else {}
+        if t["primary"]:  # the first track's ends are story.yaml's top level, never overridden here
+            oi, oo = {k: v for k, v in oi.items() if k not in ("label", "out")}, {k: v for k, v in oo.items() if k != "label"}
         ol = o.get("loops") if isinstance(o.get("loops"), dict) else {}
         if bad := sorted(str(k) for k in ol if str(k) not in {lp["id"] for lp in loops or []}):
             warnings.append(f"tracks.{t['id']}.loops: {bad} are not loops in story.yaml")
@@ -933,12 +985,67 @@ def track_views(val: dict, sections: list, inp: dict, outp: dict, labels: dict, 
             lv[lp["id"]] = _loop_view(lp, raw, t, val, where, warnings)
         views[t["id"]] = {
             "label": label,
-            "input": {"label": inp["label"], "out": inp["out"],
+            "input": {"label": str(oi.get("label") or inp["label"]), "out": str(oi.get("out") or inp["out"]),
                       "note": str(oi.get("note") or (inp["note"] if t["primary"] else t["title"] + " recordings")),
                       "explain": _explain(oi["explain"]) if oi.get("explain") else inp["explain"] if t["primary"] else None},
-            "output": {**outp, "note": str(oo.get("note") or outp["note"]), "explain": outp["explain"] if t["primary"] else None},
-            "sections": secs, "loops": lv}
+            "output": {**outp, "label": str(oo.get("label") or outp["label"]), "note": str(oo.get("note") or outp["note"]),
+                       "explain": outp["explain"] if t["primary"] else None},
+            "sections": secs, "loops": lv,
+            "anchor": _anchor(o.get("anchor"), t, {s["id"] for s in sections}, f"tracks.{t['id']}.anchor", warnings)}
     return views
+
+
+# Another track can run the same loop steps as a different chain (LIBERO: read demos, reward from video, tools, trials with
+# feedback, compile later). Its sections may then rename the step on the flowchart and in the navigator: node, short,
+# in, out; `parts` renames a several-stage step's parts or, set to `none`, shows the step as one; `planned` marks a step
+# the track will run later (drawn like a planned skill). The first track's labels never change.
+NODE_LIMIT = 18
+
+
+def _step_labels(ov: dict, where: str, warnings: list) -> dict:
+    out = {k: str(ov[k]).strip() for k in ("node", "short", "in", "out") if ov.get(k) is not None and str(ov[k]).strip()}
+    if len(out.get("node", "")) > NODE_LIMIT:
+        warnings.append(f"{where}.node: longer than {NODE_LIMIT} characters")
+    if " " in out.get("short", ""):
+        warnings.append(f"{where}.short: one word")
+    if "parts" in ov:
+        p = ov["parts"]
+        out["parts"] = {str(k): str(v) for k, v in p.items()} if isinstance(p, dict) else {}
+        out["one_step"] = not isinstance(p, dict)  # `parts: none`: the step's stages show as one step on this track
+    if ov.get("planned"):
+        out["planned"] = "planned" if ov["planned"] is True else str(ov["planned"])
+    if ov.get("pending"):  # a result due soon on a step with nothing on record yet: shown as words, never as a state
+        out["pending"] = str(ov["pending"])
+    return out
+
+
+# A track can name an external anchor: a published number its loop is measured against, from docs/knowledge/, and our
+# own run of the same protocol, counted live from that run's episode log (one JSON line per finished episode, `outcome`).
+# It sits on the frame like the integrity chip; its card holds the comparison. It never reads as our result: the
+# published number is the paper's, and our run's count says "so far" and "not scored" until a check is recorded.
+def _anchor(raw, t: dict, sec_ids: set, where: str, warnings: list) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    pub = raw.get("published") if isinstance(raw.get("published"), dict) else {}
+    ours = raw.get("ours") if isinstance(raw.get("ours"), dict) else {}
+    step = str(raw.get("step") or "")
+    if step and step not in sec_ids:
+        warnings.append(f"{where}.step: {step!r} is not a story section")
+    run = {}
+    if ours.get("episodes"):
+        p = ref_path(str(ours["episodes"]))
+        rows = read_jsonl(p) if p and p.is_file() else []
+        if p and not p.is_file():
+            warnings.append(f"{where}.ours.episodes: {ours['episodes']} not found")
+        run = {"n": len(rows), "successes": sum(1 for r in rows if str(r.get("outcome")) == "success"),
+               "t": p.stat().st_mtime if p and p.is_file() else None}
+    srcs = [str(x) for x in ([raw.get("sources")] if isinstance(raw.get("sources"), str) else raw.get("sources") or [])]
+    return {"label": str(raw.get("label") or "External anchor"), "step": step,
+            "published": {k: str(pub.get(k) or "") for k in ("value", "text", "ref", "detail")},
+            "ours": {"text": str(ours.get("text") or ""), "brain": str(ours.get("brain") or ""),
+                     "run_id": str(ours.get("run_id") or ""), "planned": int(ours.get("planned") or 0) or None,
+                     "detail": str(ours.get("detail") or ""), **run},
+            "sources": [evidence_item(x) for x in srcs]}
 
 
 # ------------------------------------------------------------------------------- Markdown for the method sheets

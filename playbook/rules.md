@@ -10,6 +10,7 @@ Every agent follows these. When a rule blocks you, stop and report it; don't wor
 - **Success is read from simulator state** by evaluator code: insertion depth, part pose relative to its hole, contact. A model's opinion of a frame is never the score.
 - **Keep splits disjoint.** Exam recordings are never read, replayed or tuned on before the final score.
 - **Actors and watchers are separate agents.** Nobody grades their own work.
+- **Observers and auditors never pass sim truth.** Anything that feeds an actor (a mid-episode nudge, a between-trial reflection, an audit verdict a later trial reads) is built only from what the actor itself received, plus outcome reports the split allows and the frozen reward's own outputs. Object poses, raw state, the benchmark predicate's value and episode-record truth never reach it; a leak check over every observer input is part of the run's integrity (e.g. `L.observer_leaks`).
 - **Cost is part of the result.** Report tokens, brain calls and wall time next to every success number.
 
 ## No sim cheating

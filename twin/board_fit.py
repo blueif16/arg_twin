@@ -66,7 +66,7 @@ SEAT_WINDOW_S = 3.0   # deepest TCP within this window before release = seated
 CONTACT_N = 5.0       # teleop contact threshold on |force.base| (reassemble-data-notes)
 FIT_KINDS = ("insert_seat", "remove_grasp")
 
-# Model hyper-parameters, chosen on train leave-one-part-out (see playbook/skills/board-from-contacts Lessons) and
+# Model hyper-parameters, chosen on train leave-one-part-out (see playbook/skills/build-twin/references/reassemble-board-from-contacts.md Lessons) and
 # frozen before any gate recording was read.
 PARAMS = dict(sigma_close_mm=1.0, sigma_pad_mm=6.0, loss="cauchy", f_scale=2.0,
               mocap_prior_mm=10.0, mocap_prior_yaw_deg=2.0, ransac_inlier_mm=15.0, outlier_close_mm=6.0)

@@ -901,7 +901,7 @@ def refine_camera(cam: CameraModel, episode: int, frames: list[int], stages=None
 # ----------------------------------------------------------------------------------------------
 # Evaluation: the numbers the world-frame checks use (full resolution, frames spread over the episode)
 # ----------------------------------------------------------------------------------------------
-# Frozen world-frame checks (playbook/skills/world-frame/SKILL.md). Static cameras are scored on
+# Frozen world-frame checks (playbook/skills/build-twin/references/reassemble-world-frame.md). Static cameras are scored on
 # held-out frames spread over the recording; the hand camera on its finger medians and keypoints.
 CHECKS = {
     "static": {"robot_edge_px_median": ("<=", 2.0), "robot_edge_px_worst": ("<=", 3.0),

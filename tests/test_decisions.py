@@ -16,7 +16,7 @@ from harness.registry import load_all
 load_all()
 from harness.tools import decisions as dec  # noqa: E402
 
-EVID = "playbook/skills/world-frame/SKILL.md"
+EVID = "playbook/skills/build-twin/references/reassemble-world-frame.md"
 
 
 def _good(**over) -> dict:

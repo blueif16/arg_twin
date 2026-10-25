@@ -42,7 +42,7 @@ Code lives in `harness/brains/`: `gemini.py` (loop, config, media), `record.py` 
 
 # Argon. Asks before spending unless --yes; refuses with no key or a non-tty without --yes
 .venv/bin/python -m harness.brains.run --brain gemini --task '<task>' --thinking-level medium \
-    --max-model-calls 20 --max-usd 5 --max-wall-s 1200 [--skills world-frame | --tools a,b,c] [--yes]
+    --max-model-calls 20 --max-usd 5 --max-wall-s 1200 [--skills build-twin | --tools a,b,c] [--yes]
 
 # Replay: no network, no key. Recorded tool results by default; --replay-tools live re-runs them;
 # --pace 1 waits the recorded latency, so it looks live in a demo

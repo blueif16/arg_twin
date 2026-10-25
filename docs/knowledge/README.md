@@ -32,6 +32,7 @@ Every agent reads this, Claude subagents and Argon alike. It is written to be ac
 | [evaluation-and-statistics](evaluation-and-statistics.md) | When a twin result means something about the real robot; trial counts, paired tests, held-out design, and known-error tests for checks |
 | [insertion-strategies](insertion-strategies.md) | Which peg-in-hole strategies (guarded touch, spiral/raster search, tilt-in, wiggle, alignment, compliance) work with what parameters, and what the REASSEMBLE operators actually did |
 | [video-to-twin](video-to-twin.md) | How to turn arbitrary video (no logs, calibration or CAD) into a scene and physics twin: camera and metric scale, objects and articulation, hands and contact, hidden physics, label-free checks and the GT benchmarks to calibrate them |
+| [lessons-2026-10-25](lessons-2026-10-25.md) | What today's Argon probes, pilot, audits and LIBERO runs taught, each lesson with its evidence path |
 
 Agent and LLM-control study notes in `studies/`: astranomy-2026, agp-2026, aspire-2026, rax-2026, urai-2026, xlerobot-2026, hivla-study-2026.
 

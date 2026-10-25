@@ -28,7 +28,7 @@ START_ARM_QPOS = [0.0, -0.785398163397, 0.0, -2.35619449019, 0.0, 1.57079632679,
 GRIPPER_OPEN = 0.04  # per finger, metres
 GRIPPER_CTRL_OPEN = 255.0
 
-# Tool stack (world-frame skill, playbook/skills/world-frame). The logged O_T_EE sits 0.174 m from
+# Tool stack (world-frame skill, playbook/skills/build-twin/references/reassemble-world-frame.md). The logged O_T_EE sits 0.174 m from
 # the flange (docs/research/reassemble-data-notes.md). The hand sits FT_STACK below the flange (the AIDIN
 # F/T sensor + mounts); the `tcp` site sits at TCP_SITE_Z on the hand so it stays on O_T_EE, which is a
 # configured point about 23 mm beyond the pad centres, not the fingertips.

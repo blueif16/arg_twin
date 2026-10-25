@@ -1,0 +1,10 @@
+{
+ "frozen_at": "2026-10-25T13:54:34-0700",
+ "evaluator": {
+  "sha256": "34709c4ee72b8da929f2ee9f463aab140c8514f4bf2ecb91190ebb44fe2bf56a",
+  "n_files": 314,
+  "mujoco": "3.8.1",
+  "robosuite": "1.4.0"
+ },
+ "note": "LIBERO goal predicates, object-state code, BDDL goals and init states of libero_10 and libero_90 (sim.evaluator_files). The server refuses to start if this changes."
+}

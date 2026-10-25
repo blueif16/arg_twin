@@ -44,8 +44,9 @@
 #   playground. What each step optimized (lessons, versions, tools, routines, frozen runs) comes from the records, the
 #   skills' Lessons and the run folders, not from here.
 brand: Bot18
-title: From footage to a twin to a policy
-subtitle: Argon reads real robot footage, builds a simulated twin shaped around the task, and teaches itself the task inside it.
+title: From footage to a policy that checks itself
+subtitle: Argon reads footage, builds a sim, writes its own reward from the video, practises with feedback and compiles routines. A watcher and an auditor check every run. Sim only.
+frame_note: Same 10 skills for every source; only the adapter and reference change   # the line inside the frame, beside the skills every step uses
 input:
   label: Real footage
   note: Franka arm, force sensor, 3 cameras
@@ -156,6 +157,227 @@ tracks:
       B:
         title: Rebuild the scene from video alone
         claim: Not started. The plan is to rebuild from video with outside hand-pose and scale cues, checked by render-and-compare and physical plausibility.
+  libero:
+    label: LIBERO
+    # LIBERO runs its own chain through the same loop steps: read demos, reward from video, tools, trials with feedback,
+    # compile later. node / short / in / out / parts / planned rename the steps on this track only (ui-protocol section 3).
+    input:
+      label: Demo videos
+      out: demo video
+      note: LIBERO-90 demos, exact sim state
+    anchor:   # the external anchor on the frame and on step 4: the published number, and our run of the same protocol
+      label: External anchor
+      step: D
+      published:
+        value: 43%
+        text: Argon as the policy on LIBERO-10, high effort, 100 episodes, $7.84 per episode
+        ref: llm-libero-2026
+        detail: 41 of those 100 episodes hit the 80-call, spending or token limit; low effort scored 34%. It is the only published Argon-as-policy number we found.
+      ours:
+        text: Our reproduction of the paper's protocol (end-effector poses, 80 calls, no sim state)
+        run_id: feas-argon-high-1
+        brain: argon
+        episodes: runs/libero/feas-argon-high-1/episodes.jsonl
+        planned: 10
+        detail: "On the tasks of our first 6 episodes the paper scored 31/60; our cost was $5.70 against its $5.90 per episode. The published adapter's camera views are mirrored left to right (docs/research/libero-setup-notes.md, item 8)."
+      sources: [docs/knowledge/llm-as-robot-policy.md, runs/libero/feas-argon-high-1/report.md, runs/libero/feas-argon-high-1/episodes.jsonl]
+    loops:
+      twin:
+        objective: "Sim is ground truth; Argon writes the reward"
+        playground: LIBERO-90 demos; LIBERO's goal predicate is the truth
+      task:
+        objective: Up to 4 trials per start; Argon reflects between
+        playground: LIBERO-10 under the published protocol
+    sections:
+      A:
+        node: Read demos
+        short: Demos
+        in: demo video
+        out: task spec
+        title: Argon reads one demo into a task spec
+        claim: Argon watches one demonstration video and writes the task as subtasks, each with the conditions that must hold before and after it.
+        read: |
+          The task spec is the first half of the reward call: one demo video plus a documented sim-state API in, subtasks
+          with pre- and postconditions out (`runs/argon/probes/reward/findings.md`).
+      B:
+        node: Reward from video
+        short: Reward
+        parts: none
+        out: reward code
+        title: Reward from video, gated before it is trusted
+        claim: Argon writes the reward from one video; a no-model gate measures it before anyone trusts it, and it caught both a loose and an over-tight version.
+        numbers: [L.reward_precision, L.reward_nearmiss_reject]
+        read: |
+          The reward is an iteration the watcher and the gate control, not a one-shot
+          (`runs/argon/libero_chain/r2/results/gate_v2.json`, `rescore_r1_v2.json`, the watcher's L checks):
+
+          - **v1, from one demo video:** progress tracks the truth (ρ 0.997), recall 1.0, the drawer check exact. The mug
+            check was too loose: precision 0.928 and near-miss rejection 0.865 (it accepted all 17 near-misses at 4 cm),
+            so the watcher marks it ✕.
+          - **v2, Argon's one revision, from gate evidence only:** precision 1.0 and near-miss rejection 1.0, but recall at
+            demo ends collapsed (mug 0.04, butter 0.31, drawer 0.625). Re-scoring round 1 offline gives 0 false positives
+            and 5 false negatives. Over-corrected.
+          - **v3, a balance iteration on the offline gate only:** true at demo ends for mug 1.0, butter 0.94, drawer 1.0,
+            with 0 near-misses accepted. The next run uses v3.
+
+          Also: the REASSEMBLE peg reward has precision 1.0 and recall 0.88 and rejected 100% of near-misses
+          (`runs/argon/peg_reward/findings.md`).
+      C:
+        node: Tools
+        short: Tools
+        out: poses
+        planned: next
+        title: The same tool skill, a published protocol first
+        claim: The same author-tools skill gives each source its tools. On LIBERO, attempt 1 must use the published end-effector pose protocol, so task tools come after the baseline.
+        read: |
+          - **Registered through the shared interface:** 10 `libero_*` tools, all passing the schema check
+            (`runs/orchestrator/libero-proof/install_report.json`).
+          - **The same skill on REASSEMBLE:** its tool chain seated 22/24 practice starts with exact information, against
+            9/24 for one raw descent (`playbook/skills/author-tools/references/reassemble.md`).
+          - **LIBERO task tools: next,** after the published-protocol baseline.
+      D:
+        node: Trials + feedback
+        short: Trials
+        title: Feedback works only when the reward is right
+        claim: "Feedback works when the reward is right: round 1 went 3/9 → 5/9 with 5/5 correct diagnoses. Round 2 practised on an over-strict reward and lost to one-shot."
+        numbers: [L.attempt1_success, L.success_at_k]
+        read: |
+          **Round 1** (9 starts = 3 tasks × 3 inits, judged by LIBERO's own check; `runs/argon/libero_chain/findings.md`):
+
+          - 3/9 succeed at the first try and 5/9 by the second; 6/9 by LIBERO's check measured 1 s after the trial ends.
+          - By Argon's own reward 4/9 → 9/9: reward and LIBERO agree on 10 of 14 trials, 0 misses, 4 false positives.
+          - 5/5 reflections found the true cause. Median cost to first success $0.70; $5.46 in total.
+
+          **The audit caught a reward hole.** The mug reward accepted placements 4–6 cm off the plate, giving 3 false
+          successes. The reward probe's 4.5 cm near-miss had already predicted it. Argon revised the reward using only gate
+          evidence (reward v2).
+
+          **Round 2, paired with one-shot** (5 starts where both finished, `runs/argon/libero_chain/r2/findings.md`):
+          one-shot 2/5, our first trial on reward v2 0/5, our loop within 2 tries 1/5 (p = 0.5 and 1.0). Reward v2 was
+          over-strict, so practice lost. A wrong reward hurts practice; this is why the gate exists.
+      E:
+        node: Compile
+        short: Compile
+        title: Practice turns into a routine
+        claim: "Practice → routine: 3/3 new starts, 1 look and 0 brain calls; 40 s vs 758 s and $0.006 vs $0.61 per success. Caveat: n = 3 in one scene."
+        read: |
+          Argon compiled its 3 successful drawer practice trials into one routine, in one call costing $0.043. On 3 new
+          starts it opened the drawer 3/3, by LIBERO's check, still true 1 s later (`runs/libero/compile-e/report.md`).
+
+          | per success | practice | routine |
+          |---|---|---|
+          | brain calls | 18.3 | 1 (a look) + 0 |
+          | wall time | 758 s | 40 s |
+          | cost | $0.61 | $0.006 |
+
+          About 19× faster and about 100× cheaper. **Caveat:** n = 3 in one scene, and the handle moves at most 2 cm. This
+          shows the cost collapse, not robustness. REASSEMBLE reference: Argon's routine seated 8/24 unseen starts against
+          Claude's 5/24, 42 s against 186 s of sim, 0 brain calls (`runs/argon/probes/compile/findings.md`).
+      F:
+        out: sim is exact
+        title: No physics questions on an exact scene
+        claim: The scene is the simulator's own, so a practice failure here cannot be blamed on the twin.
+      G:
+        title: The actor never sees the answer
+        claim: The actor never receives sim state, object poses or the goal predicate, and the auditor compares Argon's reward with LIBERO's own check on every trial.
+        numbers: [L.reward_truth_agreement, L.observer_leaks]
+        read: |
+          The predicate code and task files are hashed and frozen (314 files). Reward and LIBERO agreed on 10 of 14 round-1
+          trials, with 0 misses and 4 false positives; the mug hole behind them is fixed in reward v2.
+  webvideo:
+    label: Web video
+    define:   # provisional: validation.yaml v17 is frozen, so this track lives in story.yaml (no checks of its own)
+      name: Web video (a YouTube or egocentric clip, no robot logs)
+      scope: read, scene (a LIBERO BDDL scene written from the clip) and reward gate; practice on these scenes needs one server change
+      status: active
+      why: >-
+        Three real clips became three working sim tasks: Argon read each one, wrote the scene, and its own success check
+        agrees with LIBERO's (4/4, 4/4, 3/4), for about $0.05 per clip. Practice on these scenes needs one server change,
+        so it is not run today.
+      runs: []
+    input:
+      label: Web video
+      out: clip
+      note: YouTube / egocentric clip
+      explain:
+        title: Three real clips, three working sim tasks
+        text: |
+          - **3 clips:** YouTube "put the bowl in the microwave" (11 s), a HOT3D egocentric clip (5 s), a YouTube
+            first-person table setting (51 s).
+          - **Argon reads each clip** into steps, objects, layout and success conditions, then writes a LIBERO scene file:
+            3/3 parsed on the first try with no repairs, 3/3 built by LIBERO in 20–63 s, and LIBERO's goal check is false
+            at reset and true at the goal, 3/3.
+          - **Its own success check, written from the video, agrees with LIBERO's** on saved states: microwave 4/4,
+            table 4/4, HOT3D 3/4. About $0.05 per clip end to end ($0.158 for 3).
+
+          Source: `playgrounds/footage/run_report.md`, `runs/footage/summary.json`.
+        clips:
+          - title: Bowl into the microwave (YouTube, 11 s)
+            caption: Left, the real clip; right, the LIBERO scene Argon wrote from it. Its success check agrees with LIBERO's 4/4.
+            paths: [runs/footage/scenes/put-bowl-in-microwave/side_by_side.png]
+            labels: [clip and sim scene]
+          - title: HOT3D egocentric clip, a can (5 s)
+            caption: Placement against HOT3D ground truth is 2.4 cm mean over object-to-object distances; the check agrees 3/4.
+            paths: [runs/footage/scenes/hot3d-clip-002066/side_by_side.png]
+            labels: [clip and sim scene]
+          - title: First-person table setting (YouTube, 51 s)
+            caption: The longest clip; the scene built and the success check agrees with LIBERO's 4/4.
+            paths: [runs/footage/scenes/pov-setting-the-table/side_by_side.png]
+            labels: [clip and sim scene]
+    loops:
+      twin:
+        objective: A real clip in, a sim task with a working goal out
+        playground: YouTube and egocentric clips, no robot logs
+      task:
+        objective: "Next: practice needs one server change"
+        playground: LIBERO scenes written from footage
+    sections:
+      A:
+        node: Read clip
+        short: Read
+        in: clip
+        out: task spec
+        title: Argon reads three real clips
+        claim: Argon reads each clip (YouTube and HOT3D egocentric) into steps, objects, layout and success conditions; the microwave clip took $0.018 and 27 s.
+      B:
+        node: Scene + reward
+        short: Scene
+        parts: {B0: scene, B1: reward, B2: gate}
+        out: sim task
+        title: Three real clips, three working sim tasks
+        claim: "Three real clips → three working sim tasks: Argon read each one, wrote the scene, and its own success check agrees with LIBERO's (4/4, 4/4, 3/4), for about $0.05 per clip."
+        read: |
+          - **Scene:** 3/3 LIBERO scene files parsed on the first try with no repairs, 3/3 built in 20–63 s; LIBERO's goal
+            check is false at reset and true at the goal, 3/3.
+          - **Success check vs LIBERO's** on saved states: microwave 4/4, table 4/4, HOT3D 3/4. The disagreement: LIBERO
+            accepts the can resting on an oversized stand-in box; Argon's check is stricter.
+          - **HOT3D placement vs ground truth:** 2.4 cm mean over object-to-object distances; 2 of 6 objects have LIBERO assets.
+          - **Honest:** a one-prompt baseline ties ours on these 3 simple clips (parse, goals, check agreement) at about 40%
+            of the cost; ours is better only on HOT3D placement (4.3 vs 6.3 cm). Asset size isn't in the loop yet (the
+            oversized stand-in). Practice on these scenes is next and needs one server change.
+
+          Source: `playgrounds/footage/run_report.md`, `runs/footage/summary.json`.
+      C:
+        node: Tools
+        short: Tools
+        planned: after practice
+        title: Tools follow practice
+        claim: "Planned: practice on scenes built from footage needs the LIBERO server change, so tools follow it; the same author-tools skill and LIBERO's interface apply then."
+      D:
+        node: Practise
+        short: Practise
+        planned: needs server fix
+        title: "Next: practice needs a server change"
+        claim: Not run today. Practice on scenes built from footage needs one change to the LIBERO server, so no practice number exists for this track.
+      E:
+        node: Compile
+        short: Compile
+        planned: after practice
+        title: Compiling follows practice
+        claim: "Planned: routines are compiled from practice, which needs the server change first, so compile follows it."
+      G:
+        title: Footage is read blind
+        claim: Argon reads each clip with no labels, and its success check is judged against LIBERO's own goal check, not against Argon's reading.
 output:
   label: Real arm
   note: sim only until a real arm confirms
@@ -163,6 +385,131 @@ footer: All results are sim-only until a real arm confirms them.
 builders:
   names: [Shiran Wang, Xinrui Yi]
   note: Built in a day on Gemini 4 Argon. Argon is element 18.
+cards:   # named notes opened from the cover (and from a step page when they name a step); ui-protocol section 3
+  - id: libero-compile
+    label: "After practice: 3/3 vs 1/3"
+    tracks: [libero]
+    step: E
+    title: "After practice: 3/3 vs one-shot 1/3 on the same starts, about 190× cheaper per success"
+    text: |
+      Argon compiled its 3 successful drawer practice trials into one routine, in one call costing $0.043. On 3 new
+      starts it opened the drawer 3/3, by LIBERO's check, still true 1 s later (`runs/libero/compile-e/report.md`).
+
+      | per success | practice | routine |
+      |---|---|---|
+      | brain calls | 18.3 | 1 (a look) + 0 |
+      | wall time | 758 s | 40 s |
+      | cost | $0.61 | $0.006 |
+
+      **Caveat:** n = 3 in one scene, and the handle moves at most 2 cm. This shows the cost collapse, not robustness.
+
+      **Paired with one-shot Argon, same 3 drawer starts** (`runs/libero/compile-e/report.md`):
+
+      | | one-shot | compiled routine |
+      |---|---|---|
+      | success | 1/3 | **3/3** |
+      | calls per episode | 22 | 1 |
+      | cost per success | $1.09 | $0.0057 |
+      | wall time per episode | 301–805 s | 34–36 s |
+
+      Exact McNemar p = 0.5: direction, not proof; n = 3.
+  - id: vs-google
+    label: vs Google's prompt
+    step: A
+    cover: false
+    title: "Google's prompt vs our skill: most of our gain is source conventions and frame rate; the method alone adds a modest gain"
+    text: |
+      Google's published hindsight prompt, run verbatim by us, against our shared skill: same model (Argon), same
+      labelled recordings, 4 per source. These are not Google's scores; Google published none
+      (`runs/argon/hindsight/report.md`, `results/fairness.txt`).
+
+      | segment F1 (progress ρ where noted) | Google's prompt | our method, no conventions | our skill |
+      |---|---|---|---|
+      | Assembly101 | 0.38 | 0.45 | 0.55 |
+      | REASSEMBLE (conventions learned on these episodes) | 0.60 | 0.59 | 0.94 |
+      | LIBERO segmentation | 0.63 at 4 fps | | 0.85 |
+      | LIBERO progress, ρ | 0.97 at 4 fps | | 0.98 |
+
+      - **REASSEMBLE:** none of the gap survives without the conventions, which were measured on these same train
+        episodes, so the +0.34 is leakage.
+      - **Assembly101:** about 40% of the gap survives; mistake recall 0.95 vs 0.79 and progress ρ 0.95 vs 0.81 also
+        hold without conventions.
+      - **LIBERO:** frame rate explains the progress curve; the segmentation gap survives at equal frame rate.
+      - **Raw result, before controls:** our skill beat or tied the prompt on 12 of 12 recordings.
+      - **Also:** cost about 1.5× per minute; lessons sharpened timing but over-flagged mistakes; on Google's origami clip
+        both read Google's overlay, so it is not evidence. A held-out claim needs new recordings no lesson has seen.
+  - id: libero-reward
+    label: Reward v1 → v2 → v3
+    tracks: [libero]
+    step: B
+    title: The reward is an iteration the gate controls
+    text: |
+      Argon writes the reward from one video; a no-model gate measures it before anyone trusts it
+      (`runs/argon/libero_chain/r2/results/gate_v2.json`, `rescore_r1_v2.json`, the watcher's L checks).
+
+      | version | how it was made | what the gate measured | verdict |
+      |---|---|---|---|
+      | v1 | from one demo video | progress ρ 0.997, recall 1.0, drawer exact; mug precision 0.928, near-miss rejection 0.865 (all 17 near-misses at 4 cm accepted) | ✕ too loose |
+      | v2 | Argon's one revision, gate evidence only | precision 1.0, near-miss rejection 1.0; recall at demo ends mug 0.04, butter 0.31, drawer 0.625; round 1 re-scored offline: 0 false positives, 5 false negatives | ✕ over-tight |
+      | v3 | a balance iteration on the offline gate only | true at demo ends: mug 1.0, butter 0.94, drawer 1.0; 0 near-misses accepted; round 1 re-scored 8/9 (one mug 4.0 cm off still passes) | ✓ offline gate only; next run uses v3 |
+
+      Round 2 of practice ran on reward v2, and lost to one-shot: see "One-shot vs loop".
+  - id: libero-ladder
+    label: One-shot vs loop
+    tracks: [libero]
+    step: D
+    title: One-shot vs our loop, paired starts
+    text: |
+      Round 2, the 5 of 9 fresh starts where both arms finished, judged by LIBERO's own check
+      (`runs/argon/libero_chain/r2/findings.md`):
+
+      | arm | success |
+      |---|---|
+      | one-shot (no reward, no feedback) | **2/5** |
+      | our first trial, practising on reward v2 | 0/5 |
+      | our loop within 2 tries | 1/5 |
+
+      Exact McNemar p = 0.5 and 1.0: no difference is shown either way.
+
+      **A wrong reward hurts practice: v2 was over-strict. This is why the gate exists.** It never fired on a correct mug
+      placement, because 10 of 17 demos end with a finger still touching the mug.
+
+      - One-shot on all 9 starts: 4/9 at $1.00 per success; its own "done" was false 2 of 5 times.
+      - Round 1, with the good reward and reflections, went 3/9 → 5/9, but on different starts, so it is not a paired
+        comparison. The next run is reward v3 on held-out starts, with the full ladder.
+
+      **After practice, compiled (step 5):** on the same 3 drawer starts the compiled routine got 3/3 against one-shot's
+      1/3, with 1 call against 22 per episode and $0.0057 against $1.09 per success (p = 0.5: direction, not proof;
+      n = 3; `runs/libero/compile-e/report.md`).
+  - id: webvideo-honest
+    label: Web video, honestly
+    tracks: [webvideo]
+    step: B
+    title: Web video, honestly
+    text: |
+      - **A one-prompt baseline ties ours** on these 3 simple clips (parse, goals, check agreement) at about 40% of the
+        cost. Ours is better only on HOT3D placement: 4.3 vs 6.3 cm.
+      - **HOT3D placement vs ground truth:** 2.4 cm mean over object-to-object distances; only 2 of 6 objects have
+        LIBERO assets.
+      - **Asset size isn't in the loop yet:** LIBERO accepts the can on an oversized stand-in box, which is why Argon's
+        stricter check disagrees there (3/4).
+      - **Practice is next** and needs one change to the LIBERO server, so tools and compile follow it.
+
+      Source: `playgrounds/footage/run_report.md`.
+  - id: not-proven
+    label: Not proven yet
+    title: Not proven yet
+    text: |
+      - **The vs-Google reading gain is mostly conventions and frame rate.** The conventions were learned on the same
+        recordings; the method alone adds a modest gain on Assembly101 and on LIBERO segmentation.
+      - **No boost over one-shot proven yet.** On LIBERO round 2, one-shot got 2/5 and our loop 1/5 (p = 1.0).
+      - **No scored held-out boost.** Every attempt-1 vs attempt-N number on this page is on practice starts.
+      - **Loop 1, the twin, is not certified.** The REASSEMBLE replay audit found a leak worth about 0.10.
+      - **On the LIBERO anchor we are below the paper:** our reproduction's live count (the External anchor chip) is
+        under its 43%.
+      - **Two rungs are designed but not run:** retries without feedback, and one-shot after practice.
+
+      Everything is sim-only until a real arm confirms it.
 loops:
   - id: twin
     label: Twin loop
@@ -193,17 +540,29 @@ sections:
     in: recordings
     out: labelled steps
     title: Argon reads the footage
-    claim: From long recordings of real assembly, Argon labels every step and tells the failed attempts from the good ones.
+    claim: On 9 blind gate recordings Argon labels every step and tells failed attempts from good ones, at $0.22 per recording minute against Claude's $0.32.
     numbers: [A.segment_f1, A.success_bacc]
+    read: |
+      - **Blind gate reads:** Claude and Argon both pass 3/3 checks on 9 gate episodes: segment F1 0.992, balanced
+        accuracy 0.947 (watcher, `runs/argon/run-argon-A-1/`).
+      - **Cost:** Argon $0.22 per recording minute, Claude $0.32 (`runs/argon/probes/longvideo/findings.md`).
+      - **Self-learning:** the read-footage skill went from balanced accuracy 0.78 to 0.95 across runs.
   - id: B
     stages: [B0, B1, B2]
     node: Build twin
     short: Twin
     parts: {B0: cameras, B1: contact, B2: replay}
     out: twin
-    title: It builds a twin that fails the way reality fails
-    claim: The twin's cameras line up with the real ones, and replayed attempts succeed and jam where the real robot did.
-    numbers: [B0.overlay_hama1, B2.outcome_bacc]
+    title: A twin that lines up; replay not certified
+    claim: Cameras line up within 1.43 and 1.72 px and the board passes 4/4, but the replay is not certified because our audit found a leak worth about 0.10.
+    numbers: [B0.kp_hama1, B1.aligned_insert_rate]
+    read: |
+      - **Cameras:** Argon gets 1.43 / 1.72 px with the skill's recipe, 4.46 px with the skill alone
+        (`runs/argon/probes/b0/findings.md`).
+      - **Scene:** passes 4/4. Argon's MJCF is physically sound on 10/12 checks but places parts 7 mm off
+        (`runs/argon/probes/scene/findings.md`).
+      - **Replay:** the seat rate against the real 78% went 54% → 63% → 69% over three rounds, on train only. Our audit
+        found a leak worth about 0.10, so it is not certified and is parked.
   - id: C
     stages: [C]
     node: Task tools
@@ -217,16 +576,28 @@ sections:
     node: Practise
     short: Practise
     out: working moves
-    title: It practises on starts it has never seen
-    claim: Argon thinks only at decision points while fast routines run the contact, and success climbs with practice.
+    title: Argon practises, and retries with feedback
+    claim: Argon seats 11 of 14 finished starts at the first try with 0 false claims, $1.48 and 20.9 calls per success; Claude raw seats 12 of 14.
     numbers: [D.success_rate, D.tokens_per_success]
+    read: |
+      - **Argon attempt 1:** 11/14 seated (79%, 95% CI 49–95%), 0 false claims, $1.48 and 20.9 calls per success. On the
+        same starts Claude raw got 12/14 (p = 1.0) at 10.2 calls per success. Five episodes are marked as deviations for
+        unlogged pings (`runs/argon/pilot/findings.md`).
+      - **Retries with feedback:** on 4 hard starts, 0/4 at the first try and 1/4 by the second. 5 of 6 reflections named
+        the real cause, with 0 truth leaks; nudges had no measurable effect (`runs/argon/trials/findings.md`).
+      - **Claude pilot:** raw 21/24 vs tools + routine 16/24. The auditor said ITERATE: measure the tool tip first. The
+        system refused to fool itself (`runs/orchestrator/pilot-loop-1/audit/final_1440.md`).
   - id: E
     stages: [E]
     node: Compile
     short: Compile
     out: routines
     title: Practice compiles into routines
-    claim: Moves that work become routines that run without Argon, so every attempt costs fewer tokens and less time.
+    claim: Argon's routine went from 1/6 to 5/6 in development, then seated 8/24 unseen starts against Claude's 5/24, with 42 s against 186 s of sim time and 0 brain calls.
+    read: |
+      - **Development:** Argon's routine went 1/6 → 5/6 over its code iterations.
+      - **Unseen practice starts:** 8/24 seated against Claude's routine 5/24, 42 s vs 186 s of sim time per success,
+        0 brain calls (`runs/argon/probes/compile/findings.md`).
     numbers: [E.routine_success, E.transfer_cost_ratio]
     show: [cost]
   - id: F
@@ -244,6 +615,9 @@ sections:
     short: Integrity
     in: every number
     out: verdicts
-    title: Nothing was faked
-    claim: The exam recordings stayed sealed, the simulator was never bent, and the harness, not the agent, judged every number.
-    numbers: [G.exam_reads, G.cheat_violations]
+    title: Nothing was faked, and cheats get caught
+    claim: The Argon auditor caught 4 of 4 planted cheats and judged 13 of 16 outcomes right at $0.05 per audit; the red team was caught 15 of 15 times, with 0 sandbox escapes.
+    numbers: [G.cheat_violations, G.monitor_catch_rate]
+    read: |
+      - **Auditor:** 4/4 planted cheats caught, 13/16 outcomes judged right, $0.05 per audit.
+      - **Red team:** caught 15/15, 0 sandbox escapes (`runs/argon/probes/audit/findings.md`).

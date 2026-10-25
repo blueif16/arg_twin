@@ -1,238 +1,267 @@
 # Bot18: footage → digital twin → robot policy
 
-A 1-day hackathon build on Google's **Gemini 4 Argon**. Argon reads real robot footage, rebuilds the scene as a MuJoCo simulation (a "digital twin"), writes the success checks, then practises the task inside the twin until it is reliable. The work it has figured out gets compiled into fast routines, so each later attempt costs fewer tokens and less time.
+A 1-day hackathon build on Google's **Gemini 4 Argon** (`gemini-4-argon`).
 
-> **Status, 2026-10-25 12:30 PDT.** Everything below is **sim only** and **provisional**. No real arm has confirmed any result. The Argon API key is not set yet, so every result so far comes from **Claude agents standing in for Argon** (the "Claude stand-in" brain). When Argon runs, its skill library is wiped first, so its improvement is its own. Claude and Argon numbers are never merged.
+**The story in one line.** Argon reads footage, builds a sim of the task, writes its own reward from the video, practises with retries and feedback, and compiles what works into cheap routines. A watcher scores every run and an auditor reads every trace, so the system catches its own mistakes. Everything is sim-only.
 
-Contents: [1. The plan](#1-the-plan) · [2. Status](#2-status) · [3. What's hard](#3-whats-hard-so-far) · [4. How results are kept honest](#4-how-results-are-kept-honest) · [5. Data tracks](#5-data-tracks) · [6. Repo map and reading order](#6-repo-map-and-reading-order) · [7. Running it](#7-running-it)
+**[Presenter's guide](docs/presentation.md)**
+
+> **Status, 2026-10-25 16:45 PDT.** Every result is **sim only**. No real arm has confirmed anything (rule D5). Argon now runs on the paid key, and Claude and Argon numbers are kept apart. Every number below is copied from the orchestrator's sheet, [`runs/orchestrator/story_numbers.md`](runs/orchestrator/story_numbers.md), or from the findings file named next to it. `runs/` is not in git, so those paths exist on the build machine only.
+
+**Where to see it:** the status page, `runs/status/index.html`, served locally:
+
+```sh
+python3 -m http.server 8765 --bind 127.0.0.1 --directory /home/ran/arg_twin
+# open http://localhost:8765/runs/status/index.html
+```
+
+It opens on a flowchart with clickable clips, then one page per step, scrolled sideways. Rebuild it with `.venv/bin/python -m harness.status`.
+
+Contents: [1. The plan](#1-the-plan) · [2. Results as of today](#2-results-as-of-today) · [3. Not proven yet](#3-not-proven-yet) · [4. Next](#4-next) · [5. How results are kept honest](#5-how-results-are-kept-honest) · [6. Repo map](#6-repo-map-and-reading-order) · [7. Running it](#7-running-it)
 
 ---
 
 ## 1. The plan
 
-Source: [`docs/design/vision-draft.md`](docs/design/vision-draft.md). It is still a **proposal, not agreed**, except the two parts marked *agreed* below. The original test plan (tests T0–T7, rules D1–D5) is [`docs/test-plan-v0.md`](docs/test-plan-v0.md).
+Source: [`docs/design/vision-draft.md`](docs/design/vision-draft.md) (v1), including its "Agreed since v1" section. Parts marked *agreed* were decided by the user; the rest is a proposal.
 
 ### The claim
 
-Argon turns real robot footage into a simulated world shaped around the task, then teaches itself the task inside that world. With practice, work moves from slow reasoning into fast routines, so each attempt is more reliable and cheaper. The "policy" is Argon plus its harness: tools, compiled skills and a watcher. Small trained models are a later, optional experiment.
+Argon learns a **general skill set** that turns footage into a working simulation and then gets better at the task inside it. With practice, work moves out of slow reasoning and into fast routines, so each attempt is more reliable and cheaper. The skills should handle any scene: a random egocentric or YouTube video, as well as a robot log.
 
-### The loop
+- **Datasets are benchmarks, not targets** (*agreed*). We measure on them; we don't tune to them.
+- **The demo has no named end user** (*agreed*). It shows the flow, the measured boost and the self-learning framework.
 
-```
- A read footage ─► B build twin ─► C task tools ─► D practice ─► E compile ─► D again, cheaper
-                      ▲                                │
-                      └──────── F physics questions ◄──┘
-```
+### Two self-optimization loops, one framework (*agreed*)
 
-| Step | What happens | Done when |
+Both loops share the same machinery: a fixed orchestrator, shared skills with dated lessons, deterministic tools, a frozen evaluator, a watcher that never acts, an auditor, and a compile step that turns proven decisions into library code.
+
+| | Loop 1: build the twin | Loop 2: do the task |
 |---|---|---|
-| **A. Read footage** | Argon reads long recordings, zooms in at contact moments, and writes hierarchical labels, a progress score, strategy notes (how operators tilt, wiggle, twist) and a failure taxonomy. It also decides what the twin must get right: insertions fail most. | Segments, success calls and claims match the dataset's own labels |
-| **B0. World frame** | Cameras calibrated with the robot as the calibration object, the board frame, the tool-tip offset | Overlays line up on every camera within a few pixels |
-| **B1. Parts and contact** | Each part gets MuJoCo task frames (entry, axis, clearance, grasp), success checks and contact parameters | Aligned parts seat, misaligned parts jam, results hold when the timestep is halved |
-| **B2. Replay against reality** | Replay real attempts, failures included, in the twin | The twin's seat rate and force spread match reality across held-out recordings, and a deliberately loose twin does worse |
-| **C. Task tools** | Tools in task terms, e.g. `insert(part, hole, max_force)`, built from the twin's frames. They use only *believed* geometry (what perception would give), never sim truth. | Each tool succeeds on randomized practice starts |
-| **D. Practice (System 2)** | Argon decides only at decision points; code runs the fast force loop. Runs happen with physics paused while it thinks, and in real time. | Measured on frozen starts against the baseline |
-| **E. Compile (System 2 → 1)** | A decision pattern that keeps working becomes a sandboxed routine that runs with zero brain calls. Control returns to Argon when the routine meets something new. | It passes held-out starts, randomized "cousin" twins and the real-data force/speed envelope |
-| **F. Feedback** | If a behaviour relies on physics the replays never checked, that becomes a reconstruction request back to B | — |
+| **Objective** | The twin explains observations it wasn't fitted on: appearance and geometry on held-out frames, replayed motion gives the observed results, and a deliberately wrong twin scores clearly worse | Success on held-out starts within a frozen budget, plus cost per success (tokens, brain calls, time) and the brain's share of control |
+| **Hard limits** | Physics gates (no penetration, stable at rest, same result at half the timestep); no leakage from after the predicted event | Integrity monitors and the real-data envelope |
+| **Learning measure** | Over a stream of different videos, error and cost per new video fall | Attempt 1 (the published zero-shot protocol) vs attempt N (practice, tools, routines) on the same held-out starts; then new tasks start cheaper |
+| **Ground truth** | Label-free checks only reject, never certify, so accuracy claims come from benchmarks with ground truth (HOT3D, LIBERO scene files, REASSEMBLE and SO-101 logs) | The simulator's own success check |
 
-### What we want to prove
+Loop 1 produces playgrounds for Loop 2. When a Loop 2 failure hinges on physics the twin never checked, it goes back to Loop 1 as a request.
 
-1. **The twin is faithful** (*agreed 2026-10-24*). Given only what the log lacks (the part's pose in the gripper, the stiffness setting), the twin seats the real successes and jams the real jams with matching force, and a permissive twin can't. Predicting outcomes open-loop is a stretch goal: the log leaves the in-hand pose about 6 mm uncertain against 0.05–0.25 mm clearance.
-2. **Argon understands the crux.** The rules it states predict which held-out real attempts fail.
-3. **Self-improvement against a strong baseline** (*agreed 2026-10-24*). Attempt 1 is the strongest published recipe without compilation (Astranomy: absolute end-effector targets, full history, calibrated geometry in the prompt), run on the same frozen starts as attempt N, with paired tests. From attempt 1 to attempt N, success goes up, tokens and time per part go down, and Argon's share of control shrinks.
-4. **Transfer.** A harness built on about 8 parts makes the other 9 cheaper from their first attempt.
+```
+ A read footage ─► B build twin ─► reward from video ─► D practice (retries + feedback) ─► E compile ─► D again, cheaper
+                      ▲                                            │
+                      └────────────── F physics questions ◄────────┘
+        watcher scores every run · auditor reads every trace → advance / iterate / roll back
+```
 
-### The 3-minute demo
+### Agreed since v1 (2026-10-25 afternoon)
 
-1. The footage and the twin snap into alignment, and a real jam is reproduced in the twin.
-2. Argon's attempt 1: slow, thinking at every step, stalling at the insertion.
-3. Attempt N: fast and routine-driven. A "who's in control" timeline shows Argon appearing only when something surprises it.
-4. An unseen part: Argon steps back in, then fades out faster.
-
-### How it's built
-
-- **A fixed orchestrator** runs the stages, enforces the rules and decides when each stage is done ([`playbook/orchestrator.md`](playbook/orchestrator.md)).
-- **The playbook is the main asset.** Each step is a skill file stating its goal, tools, rules, definition of done and dated lessons. Skills give goals and checks, not recipes ([`playbook/`](playbook/)).
-- **A thin, deterministic harness**: tool registry, simulator, frozen evaluator, call recorder ([`harness/`](harness/), [`twin/`](twin/)).
-- **A swappable brain.** Claude agents now; Argon later runs the same skills through the same tools, and every Argon call is recorded and replayable.
+- **Shared skills** (*agreed*, installed 16:12 as skills v2). **One shared skill per job, 10 in all,** down from 13 skills that were mostly tied to REASSEMBLE: `read-footage`, `build-twin`, `replay-validate`, `reward-from-video`, `author-tools`, `practice`, `compile-skill`, `sim-integrity`, `auditor`, `brains` ([`playbook/skills/`](playbook/skills/)).
+  - Each core `SKILL.md` has a **"Choose your path"** table that branches by input type: robot logs + cameras, video only, simulator demos, prior runs.
+  - The core skill is the same for REASSEMBLE, LIBERO, SO-101 and web video; only `adapters/<input-type>.md` and `references/<source>.md` differ.
+  - All 44 dated lessons are kept as index entries in each core skill. v1 is archived at [`playbook/archive/skills-v1/`](playbook/archive/skills-v1/).
+- **A watcher and an auditor on every run** (*agreed*). The watcher scores. The auditor reads the reasoning and action traces, starting mid-run, and recommends advance, iterate or roll back. Argon can audit too, from clip + log with a 3-vote majority. The auditor is advisory and never sets the reward.
+- **Retries with observer feedback** (*agreed*). Up to 4 short trials per start. Between trials Argon reflects (status from the progress score, cause, fix, one guide line); during a trial a fast model nudges when progress stalls. Observers never pass sim truth.
+- **Reward from video** (*agreed*). From one demo, Argon writes the task spec, a progress score and the success code. A gate checks it with no model calls: demo ends, starts, failed siblings, generated near-misses. One revision, then it's frozen and used as the evaluator and the feedback status.
+- **LIBERO is the main demo track** (*agreed*). The full chain runs there: demo → reward → practice with feedback. The outside anchor is the published Argon attempt-1 baseline (43% on LIBERO-10). REASSEMBLE stays as the real-footage benchmark; SO-101 is parked.
 
 ---
 
-## 2. Status
+## 2. Results as of today
 
-As of 2026-10-25 12:30 PDT. The full running record, with every decision and its reasoning, is [`docs/design/progress-log.md`](docs/design/progress-log.md).
+All Argon unless marked Claude. "Practice starts" means the numbers are not held-out scores (see [section 3](#3-not-proven-yet)).
 
-### The overnight run
+### Reading footage: our skill vs Google's single prompt (stage A, all tracks)
 
-The overnight run had one mandate from the user: get a **fully connected loop** (read → twin → tools → practice → compile → practice again, cheaper) running as fast as possible, with Claude subagents as the brain and a separate watcher agent doing all the scoring.
+Source: `runs/argon/hindsight/report.md`.
 
-**Interruption:** the machine restarted at 08:13. All 7 agents had stopped mid-task at about 02:56, so roughly 5 hours were lost. They were relaunched at 08:24 from handover packs.
+Setup: Google's blog hindsight prompt (origami / UMI demos), verbatim, against our shared `read-footage` skill. Both run on Argon with the same output schema, on 12 recordings from 3 sources.
 
-### Where the loop stands
+| Measure | Google's prompt | Our skill |
+|---|---|---|
+| Recordings where we beat or tie (action-segment F1) | | **12 of 12** |
+| Segment F1, Assembly101 | 0.41 | **0.54** |
+| Segment F1, REASSEMBLE | 0.60 | **0.94** |
+| Segment F1, LIBERO | 0.72 | **0.85** |
+| Progress curve vs sim truth (LIBERO, unseen), ρ | 0.55 | **0.97** |
+| Cost per recording minute | $0.017 | $0.025 (about 1.5×) |
 
-Every step of the loop now exists and has run. Stage A passes. B2, the twin matching reality, is the step that keeps results provisional, and the first "practice again, cheaper" comparison is frozen and ready to run.
+- Boundaries are about 0.5 s tighter. Google's prompt at the default 1 fps loses short clips. Total cost $3.51.
+- **Honest:** adding lessons improved timing (LIBERO event error 0.34 → 0.20 s), but mistake-flag precision fell, so it isn't a lasting gain yet.
+- **Origami, Google's own clip:** both arms read Google's on-screen overlay, so it doesn't count as evidence.
 
-```
- A read ✓ ─► B0 ◐ ─► B1 ✓ ─► B2 ✕ ─► C ◐ ─► D ◐ ─► E ◐ ─► D again: pilot frozen, about to run
-```
+**How fair is this comparison?**
 
-### Checks per stage (Claude stand-in, REASSEMBLE track)
+- **These are not Google's scores.** Google published no scores for its origami or UMI demos, and we don't have their videos (the origami clip has their labels burned in). We ran Google's prompt text verbatim on Argon, on *our* labelled recordings, against our skill. The claim is "our skill vs Google's published prompt, same model, same recordings", not "we beat Google's results".
+- **Known biases in our favour:**
+  - Our skill's per-source references hold lessons learned on the same Assembly101 recordings and REASSEMBLE train episodes.
+  - On LIBERO our skill read at 4 fps vs Google's default 1 fps.
+  - Our skill spends 1.5–2.5× the tokens.
+  - On REASSEMBLE, Google's prompt follows its own primitive definition, which differs from the dataset's labels.
+  - n = 4 recordings per source, with no confidence intervals.
+- **Controls:** our skill without the per-source reference, and Google's prompt at 4 fps. They show how much of the gap survives. *Running at the time of writing.*
 
-Checks and targets are frozen in [`playbook/validation.yaml`](playbook/validation.yaml): v15 now, with v16 being written from today's user decisions (below). Only the watcher records them.
+### LIBERO chain (main track): demo → reward → practice with feedback
 
-| Stage | Checks passing | Key numbers | Notes |
-|---|---|---|---|
-| **A** Read footage | **3/3 ✓** | Segment F1 **0.992** (321 of 326 labelled); success balanced accuracy **0.947** (326 attempts, 30 real failures, 27 caught); claims grounded **0.947** (54 of 57, all checked); ~21k tokens per recording minute (tracked) | Blind reads of 9 gate episodes with the refined skill, scored once together as declared in advance. The refined skill names the part from *which hole* it enters and judges the outcome from end-state physics. The old skill scored 0.961 / 0.78 / 0.667 on 3 other gate episodes. |
-| **B0** World frame | 5/6 | Static cameras 1.4–1.7 px, two-view 0.17 px, tool tip 0.14 mm, board 2.37 mm | Episode 0 passes 6/6 (wrist 5.82 px). Episode 1, re-run from scratch, fails on the wrist camera (26 px) because too few board points are visible. The latest record shows as a regression. |
-| **B1** Parts and contact | 4/4 ✓ | Settle penetration 0.038 mm; aligned seat 100%, misaligned jam 100%, dt/2 agreement 100% | Pegs only. Still passes with every new twin model. |
-| **B2** Replay vs reality | 1/6 | Free-space tracking **0.62 mm** ✓. Train cross-validation, seat rate vs real **78%**: v3 54% → v5b 63% → **v6 69%**, error −0.084 (needs within 0.10). Force KS **0.211** (needs ≤ 0.20) | **The main blocker.** A diagnosis showed the old negative control can't be met by any faithful replay. The user changed it to a board-shift control (v16), and v6 passes that on train (+0.319). Before any gate look: an independent audit checks that v6's per-attempt board shift doesn't encode the real outcome, and force KS is still just over target (round pegs 0.277). |
-| **C** Task tools | 1/2 (v15 rule) | Full tool chain seats **22/24** practice starts with exact information and **10/24** with believed information, vs 9/24 and 1/24 for one raw descent. No interface regressions | Fails as v15 defines it: the minimum over tools, and search ran only 2 times (0/2). v16 gates the chain instead, on a sample fixed in advance. |
-| **D** Practice | not scored yet | First dry run counted 3 of 6. **Pilot comparison frozen:** arm 1 (raw-pose baseline) vs arm N (task tools + compiled routine) on 24 fresh practice starts, 180 s budget | Practice starts only, never scored. Being re-frozen under v16, then two fresh stand-ins run it. |
-| **E** Compile | not scored yet | Routine `peg_insert_guarded` v1, zero brain calls: **5/24** practice starts; **16/24** when given the true hole position; each success 24–47 env commands and 25–34 s, inside the real envelope | Pilot verdict "not ready". Its misses had the hole 4.5–26 mm from the first aim, so finding the hole stays a brain decision and the routine does the rest. Arm N tests exactly that split. |
-| **G** Integrity | 3/5 | Red-team catch rate **1.0** (15/15 planted cheats caught); sandbox escapes **0**; rule violations **0**; exam reads **4** ✗ | Exam episodes 9 and 10 leaked through a listing tool before a guard existed, so they're burned for the Claude brain only and stay clean for Argon. The leak is fixed at the root. |
-| **T2** SO-101 track | 1/5, parked | Frozen gate run: keypoints 7.44 px ✗, two-view 5.1 px ✗, grasp-to-brick 16.5 mm ✗, replay 4/15 ✗, shifted-brick control 0/9 ✓ | The tools work on train (cameras 3.8–6.4 px, brick start 2.0 mm). The gate fails because the episode-number split put gate bricks 35° of pan beyond any train start. A fix can only be shown on new data. |
+Sources: `runs/argon/probes/reward/findings.md`, `runs/argon/libero_chain/findings.md` (round 1), `runs/argon/libero_chain/r2/findings.md` and `r2/results/` (rewards v2 and v3, round 2, one-shot).
 
-### User decisions today (validation v16)
+**Reward from video.** From one demo per task, the drawer check is exact after one revision. (The same skill on the REASSEMBLE peg: precision 1.0, recall 0.88, 100% of near-misses rejected; `runs/argon/peg_reward/findings.md`.)
 
-1. **B2's negative control** becomes a board-shift control: a twin whose board is displaced beyond the measured board error must do clearly worse, by at least 0.10 in seat-rate error. B2 replay scoring judges "seated" on insertion depth only.
-   - Reason: a released part seats in 93.5% of feasible replays, including 39 of 69 real failures (mostly operators giving up). So a deliberately loose twin always tied, and the old control could never pass.
-2. **C** gates the full tool chain's success, on a sample size fixed in advance. Per-tool rates are tracked and count only with at least 10 trials.
-3. **Scored runs** get a 180 s sim-time budget for both arms, because the env's force-capped stops make the same commands about 1.5× slower.
-4. **E's promotion gate:**
-   - lists all 6 envelope features it applies;
-   - excludes episodes handed back to the brain from the routine's envelope;
-   - envelope-checks cousin twins.
+**Practice round 1:** 9 starts (3 tasks × 3 inits), judged by LIBERO's own check.
 
-### Running now
-
-| Agent | Working on |
+| Measure | Result |
 |---|---|
-| Validation v16 + pilot re-freeze | Writes the four decisions into `validation.yaml`, then re-freezes both pilot arms under v16 |
-| v6 leak audit | An independent check that v6's per-attempt board registration uses no data from after first contact. Includes a before-contact-only rerun and a permutation test. |
+| Succeed at the first try | 3/9 |
+| Succeed by the second try | 5/9 |
+| LIBERO's check measured 1 s after the trial ends | 6/9 |
+| Reflections that found the true cause | 5/5 |
+| Median cost to first success | $0.70 |
+| Total cost | $5.46 |
 
-Finished since the restart:
-- **Environment fixes.** Side effect: force-guarded moves are slower now, so brains guard only the last 3–5 mm.
-- **SO-101.**
-- **Blind re-test and the 6-episode A confirmation.**
-- **Task tools.**
-- **Compile.**
-- **B2 rounds 5 and 6, and the B2 diagnosis.**
-- **Pilot setup.**
-- **A page fix:** steps with work but no scores show "◐ not scored yet".
+**The reward over-corrected once, and the gate caught both mistakes.**
 
-### Next, in order
+1. **Reward v1 was too loose.** The audit found the mug reward accepted placements 4–6 cm off the plate, which gave 3 false successes. The probe's 4.5 cm near-miss had already predicted this. Argon revised the reward using only gate evidence.
+2. **Reward v2 was too strict, and the gate showed it.** The gate checks the share of demo ends the reward calls true: v2 gave mug 0.18, butter 0.94, drawer 1.0, with 0 near-misses accepted. Re-scoring round 1's trial ends offline, v1 agreed with LIBERO on 10/14 (4 false positives, 0 misses) and v2 on 9/14 (0 false positives, 5 misses): v2 traded false wins for missed real ones. The cause: 10 of 17 mug demos end with a finger still on the mug. Replaying round 1's v1 successes with a 1 s hold, v2 and LIBERO agree on 9/9. Sources: `r2/findings.md`, `r2/results/rescore_r1_v2.json`, `rescore_r1_v2_hold.json`.
+3. **Reward v3** fixes the mug at the gate (demo-end true: mug 1.0, butter 0.94, drawer 1.0; 0 near-misses accepted) but was an offline iteration only, never used in practice. Round 2 practised on v2, with the result below.
 
-1. **Run the pilot comparison:** two fresh Claude stand-ins, arm 1 and arm N, on the same 24 practice starts. The watcher then compares success, brain calls, tokens and time per success.
-2. **B2:**
-   1. finish the audit;
-   2. one more train round on round-peg force spread;
-   3. the watcher scores gate once under v16.
-3. **Scored runs on frozen held-out starts:** attempt 1 vs attempt N (29 per part), then promote the routine through the E gate and rerun with zero brain calls.
-4. **Then:** gears and the nut via MuJoCo SDF collision, the footage-only track, and Argon once its key is set.
+**Round 2 vs one-shot: one-shot Argon beat our loop on the paired starts.** Source: `runs/argon/libero_chain/r2/findings.md`. These are the 5 of the 9 fresh starts where both arms finished, all judged by LIBERO's check:
 
----
+| Arm | Success |
+|---|---|
+| One-shot Argon (no reward, no feedback) | **2/5** |
+| Our first trial, practising on reward v2 | 0/5 |
+| Our loop within 2 tries | 1/5 |
 
-## 3. What's hard so far
+- Exact McNemar p = 0.5 and 1.0, so no difference is shown either way.
+- One-shot on all 9 starts: 4/9, at $1.00 per success. Its own "done" claim was false 2 of 5 times.
+- **Why we lost:** round 2 practised on reward v2, which was too strict. It never fired on a correct mug placement, because 10/17 demos end with a finger still touching the mug. A wrong reward hurts practice, which is exactly why the gate exists.
+- **Reward v3** on the round-1 re-score gets 8/9, and one mug placed 4.0 cm off still passes.
+- **Honest summary:** with the good reward (v1 on drawer and butter) plus reflections, round 1 went 3/9 → 5/9. Round 1 and the one-shot run used different starts, so 5/9 vs 4/9 is not a paired comparison. **The provable boost over one-shot is not shown on LIBERO today.** The next run is v3 on held-out starts, with the full ladder.
 
-- **The twin is too strict (B2).** Real operators seat 78% of attempts, and the twin seats only 54% of the same attempts replayed. Tellingly, a *looser* twin (holes +1 mm per side, low friction) is closer to reality. That suggests reality has self-alignment the twin lacks, not bigger holes. The evidence points at compliance in the grasp:
-  - the tool tilts 3–5° at release
-  - the twin jams at ~1° where geometry allows ~0.64°
-  - parts slide ~3.5 mm along the pads
+**LIBERO compile (stage E):** *running at the time of writing*; no findings were written up yet (`runs/libero/compile-e/`).
 
-  What's been tried:
-  - **Round 4, a force-matched particle filter on the GPU:** made things worse. The rig seated 8–15% of its worlds against ~50% for the CPU replay.
-  - **Round 5, two fixes in parallel:**
-    - **Grasp compliance:** spring hinges on the fingers, stiffness from measured pad compression. Seat rate went 54% → 63%.
-    - **Global contact settings:** friction and wider holes top out at 64%; only softer contact goes further. The one setting that "passed" every number did so by sinking pegs up to 15 mm into the hole bottom, so it was rejected.
-  - **The common finding:** 60 of the 72 real seats the compliant twin still misses arrive more than 1 mm off the hole, against 0.05–0.25 mm clearance. The replayed motion drifts before release, and no contact or grasp setting can fix that.
-  - **The diagnosis:**
-    - Missed seats arrive 2.33 mm off the hole at release; seated ones 0.39 mm.
-    - The main causes: the part slowly creeping in the simulated grasp (~1°/s, a MuJoCo artefact), and board registrations that clipped on 82 of 308 attempts.
-    - It also found the old negative control unreachable. Once released in a feasible spot, the twin seats 93.5% of attempts, including real failures that were operators giving up.
-  - **Round 6 (v6),** a consistent grasp:
-    - a no-slip solver that stops the creep;
-    - parts placed from the twin's own kinematics;
-    - limit-surface pad torsion;
-    - a per-attempt board shift capped at the measured board error.
+**The anchor.** The published Argon attempt-1 on LIBERO-10 is 43%. Our reproduction of the paper's protocol got 2/6, against the paper's 31/60 on the same tasks, at $5.70 vs $5.90 per episode. The published camera views are mirrored.
 
-    It seats 69% (error −0.084), passes the new board-shift control on train, and keeps every B1 probe passing. Force spread (KS 0.211) is still just over target.
-- **The log hides the in-hand pose.** The recording leaves the part's pose in the gripper about 6 mm uncertain, against 0.05–0.25 mm clearance. That's why the agreed B2 gate is distribution-level (seat rate and force spread) rather than per-attempt prediction, which plateaued at ~0.65 accuracy.
-- **The wrist camera needs evidence.** Calibration works when enough board points are in view (5.8 px on episode 0) and fails on thin evidence (17–26 px on episode 1).
-- **Reading footage:** naming the part from the hole it goes into, and judging success from the end state, fixed most errors. The skill had misled the reader on connector grip widths and on "no nut travel means failure". Reading costs about 14–21k tokens per recording minute, measured from transcript usage: 20.8k pooled over 9 episodes, 13.9k for the latest reader. The first re-test cost more because it was resumed after the restart.
-- **Splits must cover the workspace (SO-101).** Cutting train and gate by episode number left the gate's brick positions outside anything train covered. The playbook now asks for a coverage check, and a joint-units step, before fitting.
-- **Practice:** the brain controls through a narrow env API with force and speed caps enforced in code. The first dry run found three harness bugs: a false integrity flag, a slow image path, and guarded stops overshooting their force limit. Fixes are in progress.
+### Web video track (new): real footage → sim task
 
-Published evidence behind each decision is in [`docs/knowledge/`](docs/knowledge/). Every claim there is referenced; the originals are kept locally and not in git.
+Sources: `playgrounds/footage/run_report.md`, `runs/footage/summary.json`.
 
----
+Three clips: a YouTube "put the bowl in the microwave" (11 s), a HOT3D egocentric clip (5 s) and a YouTube first-person table setting (51 s). Argon reads each clip into steps, objects, layout and success conditions, then:
 
-## 4. How results are kept honest
+| Step | Result |
+|---|---|
+| Writes a LIBERO scene file | 3/3 parsed on the first try, no repairs |
+| LIBERO builds it | 3/3, in 20–63 s |
+| LIBERO's goal check: False at reset, True at the goal | 3/3 |
+| Argon's video-written check agrees with LIBERO's on saved states | microwave 4/4, table 4/4, HOT3D 3/4 |
+| HOT3D placement vs ground truth | 2.4 cm mean over object-to-object distances; 2 of 6 objects have LIBERO assets |
+| Cost, end to end | about $0.05 per clip ($0.158 for 3) |
 
-- **Frozen splits.** REASSEMBLE is split into train, gate and exam; SO-101 into train and gate ([`playbook/splits.json`](playbook/splits.json), [`playbook/splits_so101.json`](playbook/splits_so101.json)). Fitting uses train only, gate is scored once per frozen version, and exam is refused by the tools.
-- **Actor ≠ watcher.** The agent that does the work never records its own checks. A separate watcher reruns deterministic tools and records the numbers, and the harness, not the agent, decides pass or fail.
-- **No sim cheating** ([`playbook/rules.md`](playbook/rules.md)). Only parameters set before t = 0 are allowed: no welds, forces or state writes afterwards. Runtime monitors flag:
-  - model changes
-  - applied forces
-  - penetration
-  - teleports
-  - energy spikes
-  - outcomes that flip at half the timestep
+- The HOT3D disagreement: LIBERO accepts the can resting on an oversized stand-in box; Argon's check is stricter.
+- **Honest:** a one-prompt baseline ties ours on these 3 simple clips (parse, goals, check agreement) at about 40% of the cost. Ours is better only on HOT3D placement (4.3 vs 6.3 cm). Asset size isn't in the loop yet (hence the oversized stand-in), and practice on these scenes needs one server change.
 
-  A flagged success doesn't count. A blind red team planted 15 cheats and all 15 were caught.
-- **Capability boundary.** Actors reach the simulator only through a command API with force and speed ceilings in code. Compiled routines pass a static checker and run in a separate sandboxed process.
-- **Information honesty.** Task tools use the *believed* board pose, with the measured perception error, never ground truth.
-- **Statistics.** Paired baseline vs attempt N on the same frozen starts, McNemar tests, and sample-size rules: at least 29 starts per part for a ≥ 0.9 claim.
-- **Records.** Every tool call is logged to `runs/calls/` and every native estimate is logged before the tool result it's compared against. Decisions go to the status timeline and the progress log.
+### REASSEMBLE A–G (real robot footage, NIST task board)
 
----
-
-## 5. Data tracks
-
-| Track | Data | Status |
+| Stage | Result | Source |
 |---|---|---|
-| **REASSEMBLE** (full loop) | NIST Task Board assembly by a Franka arm: 149 recordings, 30 fps, three cameras, joint states, end-effector pose, gripper and force/torque. Notes: [`docs/research/reassemble-data-notes.md`](docs/research/reassemble-data-notes.md) | Active. Pegs first; gears and the nut later via SDF collision |
-| **SO-101** (stage T2) | `lerobot/svla_so101_pickplace`: 50 pick-and-place episodes, two cameras, no CAD for the objects. Tests whether the general reconstruction playbook works on a setting unlike REASSEMBLE, run by an agent with no REASSEMBLE findings | Active |
-| **Footage-only** | Human or egocentric video with no robot logs | Listed, not started: hard to validate ([`docs/design/backlog.md`](docs/design/backlog.md)) |
+| **A, read** | Claude and Argon both pass 3/3 on 9 blind gate episodes: segment F1 0.992, balanced accuracy 0.947. Argon $0.22 per recording minute, Claude $0.32. Self-learning: the skill went from bacc 0.78 to 0.95 | `runs/argon/probes/longvideo/findings.md` + the A checks |
+| **B0, cameras** | 1.43 / 1.72 px with the skill's recipe; 4.46 px with the skill alone | `runs/argon/probes/b0/findings.md` |
+| **B1, scene** | Passes 4/4. Argon's MJCF is physically sound on 10/12 checks but places parts 7 mm off | `runs/argon/probes/scene/findings.md` |
+| **B2, replay** | Seat rate vs real (78%): 54% → 63% → 69% over three rounds, train only. Our audit found a leak worth about 0.10, so it's not certified and is parked | |
+| **D, Argon attempt 1** | 11/14 seated (79%, 95% CI 49–95%), 0 false claims; $1.48 and 20.9 calls per success. Same starts, Claude raw: 12/14 (p = 1.0), 10.2 calls per success. Five episodes are marked as deviations because of unlogged pings | `runs/argon/pilot/findings.md` |
+| **D, retries with feedback** | 4 hard starts: 0/4 at the first try, 1/4 by the second. 5 of 6 reflections named the real cause, 0 truth leaks. Nudges had no measurable effect | `runs/argon/trials/findings.md` |
+| **D, Claude pilot** | Raw 21/24 vs tools + routine 16/24. The auditor's verdict was ITERATE (measure the tool tip first): the system refusing to fool itself | `runs/orchestrator/pilot-loop-1/audit/final_1440.md` |
+| **E, compile** | Argon's routine went 1/6 → 5/6 in development. On unseen starts it seated 8/24 vs Claude's 5/24, using 42 s vs 186 s of sim time and 0 brain calls | `runs/argon/probes/compile/findings.md` |
+
+### Integrity (G)
+
+Source: `runs/argon/probes/audit/findings.md`.
+
+- The Argon auditor caught **4/4** planted cheats and judged 13/16 outcomes right, at $0.05 per audit.
+- The red team was caught **15/15**, with **0** sandbox escapes.
+
+---
+
+## 3. Not proven yet
+
+Copied from the sheet:
+
+- The vs-Google reading result: see its fairness caveats above. The controls decide how much of it stands.
+- No scored held-out boost: every attempt-1 vs attempt-N number above is on practice starts.
+- Loop 1 (the twin) isn't certified.
+- On the LIBERO anchor we're below the paper.
+- The rungs "retries without feedback" and "one-shot after practice" are designed but not run.
+- On LIBERO, one-shot Argon (2/5) beat our loop practising on the over-strict reward v2 (1/5 within 2 tries) on 5 paired starts. No boost over one-shot is shown yet.
+
+---
+
+## 4. Next
+
+### The evaluation ladder for a provable boost
+
+Every rung runs on **the same held-out starts** and is judged by **the sim's own check** (LIBERO's goal predicate), never by our reward.
+
+| Rung | What it isolates |
+|---|---|
+| 1. **One-shot** | Argon alone, the published attempt-1 protocol |
+| 2. **Retries without feedback** | How much is just extra tries |
+| 3. **Our full loop** | Retries with reflection and observer feedback, the frozen reward, task tools, compiled routines |
+| 4. **One-shot after practice** | Whether what was learned carries to a single try on new starts |
+
+A provable boost means rungs 3 and 4 beat rungs 1 and 2, with paired tests on the same starts. The first run of the full ladder uses reward v3 on held-out LIBERO starts.
+
+### Footage-to-sim follow-ups
+
+- **The practice server change for scenes built from footage**, so the web video scenes can be practised on, not only built and checked.
+- **Asset footprints fed into scene writing**, so Argon picks stand-in objects of the right size (the HOT3D oversized box).
+
+---
+
+## 5. How results are kept honest
+
+- **Frozen splits** ([`playbook/splits.json`](playbook/splits.json), [`playbook/splits_so101.json`](playbook/splits_so101.json), [`playgrounds/libero/splits.json`](playgrounds/libero/splits.json)). Fitting uses train only, gate is scored once per frozen version, and exam is refused by the tools.
+- **Actor ≠ watcher ≠ auditor.** The agent that does the work never records its own checks. The watcher reruns deterministic tools and records the numbers; the harness decides pass or fail. The auditor reads traces and can stop a stage (the Claude pilot's ITERATE, the reward v1 hole).
+- **No sim cheating** ([`playbook/rules.md`](playbook/rules.md)). Only parameters set before t = 0 are allowed. Runtime monitors flag model changes, applied forces, penetration, teleports, energy spikes and outcomes that flip at half the timestep. A flagged success doesn't count.
+- **Capability boundary.** Actors reach the simulator only through a command API with force and speed ceilings in code. Compiled routines pass a static checker and run in a separate sandboxed process.
+- **Observers never pass sim truth.** Reflections and nudges are grepped for leaks (0 found).
+- **Records.** Every tool call is logged to `runs/calls/`. Checks and targets are frozen in [`playbook/validation.yaml`](playbook/validation.yaml).
 
 ---
 
 ## 6. Repo map and reading order
 
-**To study the project, read in this order:**
-
 1. This README.
 2. [`docs/design/vision-draft.md`](docs/design/vision-draft.md): the plan in full.
-3. [`docs/design/progress-log.md`](docs/design/progress-log.md): what was launched, what came back, what was decided.
-4. [`playbook/README.md`](playbook/README.md), [`playbook/orchestrator.md`](playbook/orchestrator.md), [`playbook/rules.md`](playbook/rules.md): how agents run the loop.
+3. [`playbook/README.md`](playbook/README.md), [`playbook/orchestrator.md`](playbook/orchestrator.md), [`playbook/rules.md`](playbook/rules.md): how agents run the loop.
+4. [`playbook/skills/`](playbook/skills/): the 10 shared job skills, each with Choose-your-path, adapters and references.
 5. [`playbook/validation.yaml`](playbook/validation.yaml): every check, its target and the version history.
-6. [`playbook/skills/`](playbook/skills/): one skill per job. The Lessons sections hold the real numbers.
-7. [`docs/knowledge/`](docs/knowledge/): the published best practice behind each decision.
-8. [`docs/research/google-argon-twin-pipeline.md`](docs/research/google-argon-twin-pipeline.md): how Google's Argon demos build twins.
+6. [`docs/knowledge/`](docs/knowledge/): published best practice behind each decision; today's lessons in [`docs/knowledge/lessons-2026-10-25.md`](docs/knowledge/lessons-2026-10-25.md).
+7. [`docs/research/google-argon-twin-pipeline.md`](docs/research/google-argon-twin-pipeline.md): how Google's Argon demos build twins.
 
 | Path | What |
 |---|---|
-| `harness/` | Tool registry and CLI. Tools live in `harness/tools/*.py`, auto-discovered; `harness/status.py` builds the status page |
-| `twin/` | MuJoCo scene, replay, controller, env with its capability boundary, monitors, cousins, envelope, task tools, skill library, SO-101 modules |
-| `playbook/` | Orchestrator, rules, skills, validation checks, splits |
-| `docs/knowledge/` | Topic syntheses and `references.md`; per-paper study notes in `studies/` |
-| `docs/research/` | Data notes, environment setup, API notes, Google pipeline breakdown |
-| `docs/design/` | Vision draft, progress log, backlog, UI protocol |
-| `tests/` | Sim-integrity suite, monitor sanity checks, UI tests |
-| `runs/` | Run outputs: call logs, replays, footage reads, status page. **Not in git** (about 900 MB) |
+| `harness/` | Tool registry and CLI (tools in `harness/tools/*.py`, auto-discovered, including the LIBERO tools); `harness/brains/` runs Gemini over the tools, with trials and an offline fake; `harness/status.py` builds the page |
+| `twin/` | MuJoCo scene, replay, controller, env with its capability boundary, monitors, task tools, skill library |
+| `playbook/` | Orchestrator, rules, shared skills, validation checks, splits; `archive/skills-v1/` holds the old skills |
+| `playgrounds/libero/` | The LIBERO playground: server, sim wrapper, Argon loop, feasibility runs and report. `report.py` also reads `paper_argon_episodes.json` (the paper's published per-episode numbers), which is kept out of git as downloaded data |
+| `playgrounds/footage/` | The web video track: read → LIBERO scene file → build → reward gate, plus the one-prompt baseline |
+| `recon/` | Loop 1 for any video (intake → scene card → twin). Written, not run: stopped when scope was cut |
+| `docs/` | Knowledge base, research notes, design (vision, UI protocol) |
+| `tests/` | Sim-integrity suite, decision tests, UI and handback checks |
+| `runs/` | Run outputs, findings and the status page. **Not in git**, except `runs/status/story.yaml` |
 | `data/`, `vendors/` | Downloaded datasets and reference repos. **Not in git** |
 
 ---
 
 ## 7. Running it
 
-Environment: `.venv` (uv, Python 3.12) with torch 2.11 (CUDA), mujoco 3.17, mujoco-warp 3.17, lerobot 0.6.1, google-genai 2.33. Details: [`docs/research/env-setup-notes.md`](docs/research/env-setup-notes.md) and [`CLAUDE.md`](CLAUDE.md).
+Environment: `.venv` (uv, Python 3.12) with torch 2.11 (CUDA), mujoco 3.17, mujoco-warp 3.17, lerobot 0.6.1, google-genai 2.33. LIBERO has its own setup: [`docs/research/libero-setup-notes.md`](docs/research/libero-setup-notes.md). Details: [`docs/research/env-setup-notes.md`](docs/research/env-setup-notes.md) and [`CLAUDE.md`](CLAUDE.md).
 
 ```sh
 .venv/bin/python -m harness.cli list                                # every tool's declaration
 .venv/bin/python -m harness.cli call status_summary '{}'            # every stage's state
 .venv/bin/python -m harness.status                                  # rebuild runs/status/index.html
+.venv/bin/python -m harness.brains.test_offline                     # brain runtime, offline
 MUJOCO_GL=glfw .venv/bin/python -m twin.render                      # smoke render (WSL needs glfw)
 .venv/bin/python -m tests.test_sim_integrity --quick                # integrity tests
 ```
 
-The status page (`runs/status/index.html`) is built locally from the run records. It has a cover flowchart with clips, one chapter per step, and a ledger of every event and cost.
+The Gemini key lives outside the repo (see `CLAUDE.md`) and is passed per command.

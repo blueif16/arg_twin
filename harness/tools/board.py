@@ -1,4 +1,4 @@
-"""Stage B0 tools: place the board from the robot's own contact events (skill: playbook/skills/board-from-contacts).
+"""Stage B0 tools: place the board from the robot's own contact events (skill: playbook/skills/build-twin/references/reassemble-board-from-contacts.md).
 
 Core code: twin/board_fit.py (events, layout fit, per-recording fit, held-out evaluation); plots: twin/board_viz.py.
 Outputs go under runs/<brain>/<run_id>/board/.
