@@ -111,3 +111,36 @@ A read ─► B twin (pegs) ─► C task tools ─► D practice ─► E compi
 
   The SO-101 agent carries the gate ruling. The selection rule for B2 5a vs 5b is unchanged. The heartbeat cron (at :17 and :47) is still active.
 - 2026-10-25 08:25 heartbeat: the 7 relaunched agents started a minute ago and are still reading their packs (load 0.4). Critical path active (env fixes, C, E); no action.
+- 2026-10-25 08:34: private GitHub repo blueif16/arg_twin created. One commit (fdb191c, the 02:56 snapshot plus a README with the plan and status) pushed to main. Push again only on a meaningful update, and refresh the README's status section each time.
+- 2026-10-25: **env fixes returned** (all 4 verified).
+  - Empty-close: the fingers no longer self-collide, and the dry-run round peg 4 000 now counts clean.
+  - Render op (socket only): 0.5–3.4 s per image.
+  - Guarded stop: checks every 1 ms with speed capped by stop force; worst overshoot +0.31 N at 1.5 N.
+  - end_limit op added.
+  - Red-team rerun: 21 runs, no exploit counted. monitor_selftest 21/21, test_sim_integrity 12/12, test_offline 7/7.
+  - **Behaviour change:** guarded descents are slower. The dry-run replay went 79 → 122 s of sim time, past the 120 s budget, and long guarded moves hit the 20 s timeout. Forwarded to task tools and compile: guard only the last 3–5 mm; no budget, timeout or envelope widening.
+  - Open for the baseline: the attempt-1 protocol must say "guard the last few mm" before its budget is frozen.
+- 2026-10-25: **SO-101 track finished (actor numbers).**
+  - Native → tool on train: up camera 83→6.4 px, side 85→3.8 px, joint map 15.4→5.9 mm, brick start 21.5→2.0 mm, controller 15.1→5.8 mm.
+  - Frozen gate (of record): replay crashed (6/15 bricks unseen by the side camera), so replay success is not measured. Grasp-to-brick 16.5 mm; up camera 152 px.
+  - FIXED-AFTER-GATE: replay 4/15 (4/5 at the trained brick spot, 0/10 at a new one); negative control 0/15; up 16 px.
+  - **Main finding:** the split is by episode index, so gate episodes 40–49 put the brick 35° of pan beyond any train start. There FK is about 2 cm off. Playbook gaps: no joint-units step, and no check that train covers the gate workspace (Lessons added).
+  - Next: the watcher scores T2 from the frozen run, batched with C and A when those report.
+- 2026-10-25: **blind re-test returned** (gate episodes 99, 102 and 103, refined skill, actor read, not scored).
+  - Segments 43 / 42 / 32; called failures 5 / 6 / 0.
+  - Tokens per minute: 9.3k (15.9k including the lost predecessor run).
+  - The skill broke once: a partial reopen was read as a hold (Lesson added).
+  - Launched the standing watcher: A on the re-test (refined skill, with the pooled 6-episode number only as context) and T2 from the frozen run of record. C and B2 gate follow on resume.
+- 2026-10-25 08:55: page server restarted (http.server 8765). User report: the flowchart hides unscored work, because nodes reflect record_check only, so D and SO-101 B0/B2 show not started despite milestones and media. Launched a UI agent: steps with events or media but no checks show ◐ 'in progress · not scored yet', with the protocol updated in the same change.
+- 2026-10-25 08:55 heartbeat: 6 running (B2 5a, B2 5b, task tools, compile, watcher on A and T2, UI fix), all writing files, load 17; env fixes, SO-101 and the blind re-test are done. Critical path active (C, E, B2); no action.
+- 2026-10-25 09:00: UI fix done. Steps with events or media but no checks show ◐ 'not scored yet', the gold node follows activity, and status_summary adds activity and unscored_work (state unchanged). The protocol was updated in the same change; checked in headless Chrome. Watcher (still running, T2 next) recorded **A passing 3/3** on the blind re-test with the refined skill: F1 0.996, success bacc 0.954, claims grounded 0.958, 32.5k tokens per minute (tracked). Waiting for its caveats.
+- 2026-10-25: **watcher scored A (re-test) and T2.**
+  - **A passes 3/3, success_bacc provisional:** F1 0.996 (117/118); bacc 0.954 with 12 real failures, under 30 (0.912 counting one unmatched attempt as wrong); claims grounded 23/24 = 0.958 (CI 0.79–1.00, all claims checked).
+  - Tokens per minute: 32.5k, metered from transcript usage. The same meter puts the first test at 31.2k, so the 13k recorded then was undercounted.
+  - Pooled 6 episodes over both skill versions: F1 0.981, bacc 0.889.
+  - **T2 fails on the frozen run of record:** kp 7.44 px (up 14.9, side 2.5; 60 watcher marks), two-view 5.1 px, grasp 16.5 mm, replay 4/15 (6 crashes counted as failures), negative control 0/9 (upper bound 0.34 > 0.3), native-first 8/13 (tracked).
+  - **T2 parked:** the failure is a split/workspace-coverage problem, not a calibration bug. All 50 SO-101 episodes are now used, so a fix can only be shown on new data. Lessons are in reconstruct-scene.
+- 2026-10-25: **A confirmation declared before scoring:**
+  - Seeded draw of 6 unread gate episodes (24, 42, 58, 65, 92, 117; runs/claude/run-standin-1/footage_blind/confirm_episodes.json).
+  - One fresh blind reader.
+  - The watcher scores the 9 refined-skill episodes together once, plus the 6 alone. N is fixed now; no episodes are added after looking.

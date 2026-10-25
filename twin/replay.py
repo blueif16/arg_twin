@@ -262,6 +262,9 @@ class ReplayParams:
     pad_friction: float = 1.0        # sliding friction of the pads (max rule with the part's)
     pad_torsion: float = 0.002       # m, torsional friction of the pads: resists pivoting about the closing axis
     pad_solref: float | None = None  # contact time constant of the pads (None: solref_tc)
+    pad_tc_by_part: dict | None = None  # s, v5b soft pads: pad-part contact time constant per part, identified from
+    #                                     the real hold-width deficit at 60 N; the pads' solmix is raised so the pair
+    #                                     uses it (None or a part not listed: unchanged)
     reg_rotation: str = "none"       # inhand registration of the part's rotation in the hand: none (aligned with the
     #                                  hand) | pivot (about the closing axis, into the pad plane) | full (vertical)
     grasp_dy: float = 0.0            # m, part centre off the finger mid-plane (finger coupling offset; set by inhand)
@@ -272,12 +275,24 @@ class ReplayParams:
     grasp_pivot: float = 0.0         # rad, registered pivot (about hand y); the pads' rest angle when finger_pivot_k > 0
     finger_rock_k: float = 0.0       # Nm/rad per finger, hinge about the pad-width axis at the pad centre (0: rigid)
     finger_pivot_k: float = 0.0      # Nm/rad per finger, hinge about the pad normal at the pad centre (0: rigid)
+    finger_rock_k_by_part: dict | None = None  # v5b: Nm/rad per finger for these parts (overrides finger_rock_k)
+    finger_rock_axis: str = "pad"    # v5b: pad = rock hinge through each pad centre (as before) | mid = both rock
+    #                                  hinges on the part's axis (grasp mid-plane, half the gripped width inside each
+    #                                  pad face), so a rigid part can rock without shearing the pads
+    finger_zeta: float | None = None  # v5b: hinge damping ratio on (armature + finger + half the part) inertia about
+    #                                   the hinge; None: the old numerical rule 4 sqrt(k armature)
+    finger_rock_couple: bool = False  # v5b: tie the two rock hinges (equal rotation in the hand frame, a joint coupling
+    #                                   like the finger_joint1/2 one) so the pads stay parallel: a compliant jaw pair
     # contact (part-board); B1 defaults
     friction: float = 0.3            # part friction (max rule: board is 0.05)
     solref_tc: float = 0.004         # contact time constant, s
     solimp: tuple = (0.95, 0.99, 0.0005, 0.5, 2.0)
     cone: str = "elliptic"
     impratio: float = 10.0
+    board_solref_tc: float | None = None  # board geoms' own contact time constant (None: solref_tc, i.e. unchanged).
+    #                                       The part-board pair mixes to the mean of part and board (solmix 1:1);
+    #                                       the pads and the part keep solref_tc (v5a knob, 2026-10-25)
+    board_solimp: tuple | None = None     # board geoms' own solimp (None: solimp); mixed with the part's like solref
     # board / part geometry
     surface_z: float = 0.0303        # plate top above the mocap board z: +30.3 mm (+-4), plate corners triangulated by
     #                                  the calibrated static cameras (twin/calib board entry; world-frame Lessons)
@@ -314,7 +329,7 @@ class ReplayParams:
         bad = set(d) - known
         if bad:
             raise ValueError(f"unknown replay params {sorted(bad)}; known: {sorted(known)}")
-        for k in ("solimp", "board_offset"):
+        for k in ("solimp", "board_offset", "board_solimp"):
             if k in d and d[k] is not None:
                 d[k] = tuple(d[k])
         return cls(**d)
@@ -379,6 +394,10 @@ def build_model(part_name: str, board_pose: dict, rp: ReplayParams, tcp_pose=Non
     part.params["grasp_from_top"] = replace(part.params["grasp_from_top"], value=float(rp.grasp_from_top))
     contact = dict(CONTACT, solref=[float(rp.solref_tc), 1.0], solimp=list(rp.solimp))
     board.contact = dict(contact)
+    if rp.board_solref_tc is not None:
+        board.contact["solref"] = [float(rp.board_solref_tc), 1.0]
+    if rp.board_solimp is not None:
+        board.contact["solimp"] = list(rp.board_solimp)
     if rp.hole_widen:
         board.contact["board_friction"] = 0.0
 
@@ -419,15 +438,28 @@ def build_model(part_name: str, board_pose: dict, rp: ReplayParams, tcp_pose=Non
     g.forcerange = [-2 * rp.grip_force, 2 * rp.grip_force]
 
     # finger compliance (pads that rock / pivot), defined before t = 0
+    k_rock = float((rp.finger_rock_k_by_part or {}).get(part_name, rp.finger_rock_k))
+    # v5b "mid": in each finger's frame the part axis sits half the gripped width (section along hand y) inside
+    # the pad face (pads 2-5 face at finger y = 0; the right finger's frame is turned 180 deg about z)
+    rock_pos = [0, -part.section[1] / 2, PAD_Z] if rp.finger_rock_axis == "mid" else [0, 0, PAD_Z]
+    if rp.finger_rock_axis not in ("pad", "mid"):
+        raise ValueError("finger_rock_axis must be pad | mid")
     for fn, sgn in zip(FINGERS, (1.0, -1.0)):  # the right finger is turned 180 deg about z: its x and y flip
         fb = spec.body(fn)
-        for nm, ax, k, ref in (("rock", [1, 0, 0], rp.finger_rock_k, rp.grasp_rock),
+        for nm, ax, k, ref in (("rock", [1, 0, 0], k_rock, rp.grasp_rock),
                                ("pivot", [0, 1, 0], rp.finger_pivot_k, rp.grasp_pivot)):
             if k > 0:
                 arm_ = max(1e-6, k * (rp.timestep / 0.4) ** 2)
-                fb.add_joint(name=f"{fn}/{nm}", type=mujoco.mjtJoint.mjJNT_HINGE, axis=ax, pos=[0, 0, PAD_Z],
+                fb.add_joint(name=f"{fn}/{nm}", type=mujoco.mjtJoint.mjJNT_HINGE, axis=ax,
+                             pos=rock_pos if nm == "rock" else [0, 0, PAD_Z],
                              stiffness=k, springref=sgn * ref, damping=4 * math.sqrt(k * arm_), armature=arm_,
                              range=[-0.35, 0.35], limited=True)
+    if rp.finger_rock_couple and k_rock > 0:  # v5b: right rock = -left rock (its x axis is flipped), before t = 0
+        eq = spec.add_equality()
+        eq.type = mujoco.mjtEq.mjEQ_JOINT
+        eq.name = "v5b/rock_couple"
+        eq.name1, eq.name2 = f"{FINGERS[0]}/rock", f"{FINGERS[1]}/rock"
+        eq.data[:5] = [0.0, -1.0, 0.0, 0.0, 0.0]
 
     from twin.assembly import _compose
     off = np.asarray(rp.board_offset, float)
@@ -460,11 +492,37 @@ def build_model(part_name: str, board_pose: dict, rp: ReplayParams, tcp_pose=Non
             m.geom_friction[gi] = [rp.pad_friction, rp.pad_torsion, 1e-5]
             m.geom_solref[gi] = [rp.pad_solref or rp.solref_tc, 1.0]
             m.geom_solimp[gi] = list(rp.solimp)
+    if rp.finger_zeta is not None:  # v5b: physical damping ratio on the hinge modes (armature + finger + part/2)
+        pbid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, part.slug)
+        i_part = float(m.body_inertia[pbid].max()) + float(m.body_mass[pbid]) * (part.length / 2 - rp.grasp_from_top) ** 2
+        for fn in FINGERS:
+            fbid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, fn)
+            for nm in ("rock", "pivot"):
+                j = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, f"{fn}/{nm}")
+                if j < 0:
+                    continue
+                r = np.asarray(m.jnt_pos[j]) - np.asarray(m.body_ipos[fbid])
+                ax = np.asarray(m.jnt_axis[j])
+                r_perp2 = float(r @ r - (r @ ax) ** 2)
+                da = m.jnt_dofadr[j]
+                i_eff = float(m.dof_armature[da]) + float(m.body_inertia[fbid].max()) + float(m.body_mass[fbid]) * r_perp2 + i_part / 2
+                if nm == "rock" and rp.finger_rock_axis == "pad":
+                    i_eff += float(m.body_mass[pbid]) * (part.section[1] / 2) ** 2 / 2
+                m.dof_damping[da] = 2 * rp.finger_zeta * math.sqrt(float(m.jnt_stiffness[j]) * i_eff)
+    tc_pad = (rp.pad_tc_by_part or {}).get(part_name)
+    if tc_pad is not None:  # v5b soft pads: the pad's own softness governs the pad-part pair (solmix weight)
+        for gi in range(m.ngeom):
+            if m.geom_bodyid[gi] in fids and m.geom_contype[gi]:
+                m.geom_solref[gi] = [float(tc_pad), 1.0]
+                m.geom_solmix[gi] = 1e3
     if rp.grasp_dy:
         # finger coupling q1 = q2 (+ c0): with c0 = 2 dy the pads' mid-plane sits dy along hand y
         for e in range(m.neq):
             if m.eq_type[e] == mujoco.mjtEq.mjEQ_JOINT:
                 m.eq_data[e, 0] = 2 * rp.grasp_dy
+        ec = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_EQUALITY, "v5b/rock_couple")
+        if ec >= 0:  # the closing offset belongs to the finger slide coupling only
+            m.eq_data[ec, 0] = 0.0
     if rp.joint_damping is not None:
         for i in range(1, 8):
             j = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, f"fr3_joint{i}")

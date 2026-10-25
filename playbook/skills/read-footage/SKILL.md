@@ -192,6 +192,14 @@ A watcher can run these without the actor's reasoning:
   - aborted approaches with no close (13 failed Picks/Removes in all train). Drafting these added false segments on held-out, so the tool only reports them.
 - **Cost.** About 1 s of tool time per recording. Two calls (`end_state_check`, then one whole-window `query_signals`) give the skeleton, the parts and a first success call before any image.
 
+**2026-10-25, claude-opus-5.5 stand-in, blind retest of gate episodes 99, 102, 103 with the refined tools** (labels: `runs/claude/run-standin-1/footage_blind/retest_ep*.json`; callers `claude-standin-blind-A2` and, after a restart, `claude-standin-blind-A2r`; native-before-zoom records `a2-*` and `a2r-*` in `runs/claude/run-standin-1/decisions.jsonl`). Not scored when written.
+
+- **Broke: a partial reopen read as a hold.** A cycle that closes to < 1 mm, reopens part way and closes to < 1 mm again was drafted as a hold at the partial-reopen width (30.7 mm), so a missed grasp became `Pick` + `Place` of a part named by hold width only (`runs/footage/ep102/query_signals_0255.50-0286.00_A2r.json`, 264.4-271.1 s). For every "hold width only" cycle, read the gripper events or a `series_hz` window first: any close to < 1 mm inside the cycle means closed on nothing.
+- **Misleading: "released at its hole" on a Remove cycle.** For one Remove the tool reported the release at the part's own hole (seat 6.6 mm) while the TCP at release was 236 mm away (`runs/footage/ep103/query_signals_0172.80-0177.55_A2r.json`); the seat is the lowest point of the hold, which for a Remove is the grasp. Trust `carried_from_hole_mm` for Removes and check the TCP at `release_s` before calling anything an Insert.
+- **Helped.** Hole location named every at-hole cycle without video. For a table-only cycle in an assembly recording, the vocabulary part never inserted is the first candidate, then the hand camera confirms it. That replaced a wrong width-only name (small gear for a 20.4 mm grasp of the waterproof connector, `runs/footage/ep099/grid_0012.00-0033.00_hand_t12-9bc555.png`).
+- **Open.** A peg's open-hand return can be a contactless dip (0.9 N) followed seconds later by the real finger press (7.2 N, dz 0.0). I ended the nudge at the press. Unverified until scored.
+- **Cost.** 9.3k unique tokens per recording minute for the resumed reader (19.1 recording minutes, 178k tokens, 28 calls, 9 images), or 15.9k including the predecessor's run lost in the restart. Counted from the session's token counter, setup excluded.
+
 ## Sources
 
 - REASSEMBLE dataset and labels: `docs/research/reassemble-data-notes.md` [S1–S5 there]. Splits: `playbook/splits.json` (tuning and evaluation used train recordings only).

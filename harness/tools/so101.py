@@ -373,7 +373,8 @@ def so101_objects_fit(calib: str, out: str, box_seed=None, rim_inset: float | No
 @tool(
     "so101_add_starts",
     "SO-101: add brick start poses (frame 0, from both cameras, z on the fitted table) for a split to a copy of an "
-    "objects JSON. Use it to freeze gate starts with the frozen tools.",
+    "objects JSON. Use it to freeze gate starts with the frozen tools. Since the frozen gate run (2026-10-25) a brick "
+    "seen by one camera only is placed from that view on the table plane; such starts have views == [that camera].",
     {"type": "object", "required": ["calib", "objects", "split", "out"], "properties": {
         "calib": {"type": "string"}, "objects": {"type": "string"}, "split": {"type": "string"}, "out": {"type": "string"}}},
 )
@@ -595,17 +596,22 @@ def so101_replay_video(calib: str, objects: str, ep: int, out: str, split: str =
     return {"mp4": _rel(p), "success": r.get("success"), "brick_final_box_frame_mm": r.get("brick_final_box_frame_mm")}
 
 
-def _lowest_teal(img, min_area: int = 12):
-    """The lowest (largest v) teal blob: near the grasp the jaw cap is below the arm in both views; other teal parts
-    of the robot sit higher up."""
+CAP_VMIN = 70  # fixed after gate (2026-10-25), chosen on train: see runs/claude/run-so101-1/fix_train/teal_sweep.json
+
+
+def _cap_blob(img, min_area: int = 12, vmin: int = CAP_VMIN):
+    """The teal cap's centroid for so101_auto_marks: the largest teal blob that is also bright (V >= vmin).
+    The frozen version (twin/so101_camcal.py::teal_centroid, V >= 50) also accepted dark blue-tinted specks on the
+    black servo housing (V about 55) when the cap was hidden or dim in the up camera, which put marks 30-250 px off
+    on train and gate. Train only: V >= 70 removes every > 25 px outlier (runs/claude/run-so101-1/fix_train/)."""
     import cv2
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    m = ((hsv[..., 0] >= 75) & (hsv[..., 0] <= 100) & (hsv[..., 1] >= 80) & (hsv[..., 2] >= 50)).astype(np.uint8)
+    m = ((hsv[..., 0] >= 75) & (hsv[..., 0] <= 100) & (hsv[..., 1] >= 80) & (hsv[..., 2] >= vmin)).astype(np.uint8)
     n, lab, st, cen = cv2.connectedComponentsWithStats(m)
     ks = [k for k in range(1, n) if st[k, cv2.CC_STAT_AREA] >= min_area]
     if not ks:
         return None
-    k = max(ks, key=lambda k: cen[k][1])
+    k = max(ks, key=lambda k: st[k, cv2.CC_STAT_AREA])
     return cen[k].astype(float)
 
 
@@ -614,7 +620,8 @@ def _lowest_teal(img, min_area: int = 12):
     "SO-101: code-detected keypoint marks for so101_keypoint_check: the teal cap's centroid (key teal_cap) in each "
     "camera at near-still frames of each episode (3 frames before the leader starts closing the gripper, and 3 frames "
     "after the follower's gripper is blocked by the brick). A watcher's by-eye marks are the gated measurement; these "
-    "are the actor's automatic stand-in.",
+    "are the actor's automatic stand-in. v2 (fixed after the frozen gate run): bright teal only (V >= 70), so dark "
+    "specks on the black housing are no longer taken for the cap.",
     {"type": "object", "required": ["out"], "properties": {
         "split": {"type": "string"}, "eps": {"type": "array", "items": {"type": "integer"}}, "out": {"type": "string"}}},
 )
@@ -628,8 +635,53 @@ def so101_auto_marks(out: str, split: str = "gate", eps=None) -> dict:
             continue
         for f in (max(cs - 3, 0), gf + 3):
             for cn in sd.CAMS:
-                t = _lowest_teal(sd.frame(ep, cn, f))
+                t = _cap_blob(sd.frame(ep, cn, f))
                 if t is not None:
                     marks.append({"ep": ep, "frame": int(f), "cam": cn, "key": "teal_cap", "uv": [round(float(t[0]), 2), round(float(t[1]), 2)]})
-    res = {"by": "so101_auto_marks (teal centroid, code)", "split": split, "marks": marks}
+    res = {"by": "so101_auto_marks (teal centroid, code)", "split": split,
+           "detector": {"version": "v2, fixed after the frozen gate run (2026-10-25)", "hue": [75, 100], "s_min": 80,
+                        "v_min": CAP_VMIN, "min_area_px": 12, "pick": "largest"},
+           "marks": marks}
     return {"json": _json(res, _p(out)), "n": len(marks)}
+
+
+@tool(
+    "so101_render_compare",
+    "SO-101: real frames next to the twin rendered from the calibrated cameras, for one (ep, frame): the arm at the "
+    "follower's logged state (each camera's latency applied), the table, the box, and the brick at its frame-0 start "
+    "(so use frame 0 or a frame before the grasp). Writes two PNGs with the cameras stacked (up over side): real and "
+    "twin, for a wipe-slider comparison.",
+    {"type": "object", "required": ["calib", "objects", "ep", "frame", "out_real", "out_sim"], "properties": {
+        "calib": {"type": "string"}, "objects": {"type": "string"}, "ep": {"type": "integer"},
+        "frame": {"type": "integer"}, "split": {"type": "string"}, "out_real": {"type": "string"},
+        "out_sim": {"type": "string"}, "scale": {"type": "number", "description": "output scale (default 0.75)"}}},
+)
+def so101_render_compare(calib: str, objects: str, ep: int, frame: int, out_real: str, out_sim: str,
+                         split: str = "train", scale: float = 0.75) -> dict:
+    import cv2
+    import mujoco
+    from twin import so101_camcal as cc, so101_data as sd, so101_replay as rp
+    _eps([ep], split)
+    tw, o = _twin(calib, objects, None)
+    cams, jm, lat = cc.load_calib(_p(calib))
+    st = rp.brick_start(o, ep)
+    rend = mujoco.Renderer(tw.m, 480, 640)
+    real, sim = [], []
+    for cn in sd.CAMS:
+        q = jm.q(cc.interp_units(sd.signals(ep)["state"], np.array([frame + lat[cn]])))[0]
+        tw.reset(q, st["pos"], st["yaw"])
+        rend.update_scene(tw.d, camera=cn)
+        im = cv2.cvtColor(rend.render(), cv2.COLOR_RGB2BGR)
+        rl = sd.frame(ep, cn, frame)
+        for img, lst, tag in ((rl, real, "real"), (im, sim, "twin")):
+            img = cv2.resize(img, None, fx=scale, fy=scale)
+            cv2.putText(img, f"{tag} {cn} ep{ep} f{frame}", (8, 22), 0, 0.6, (0, 200, 255), 2)
+            lst.append(img)
+    rend.close()
+    outs = []
+    for lst, path in ((real, out_real), (sim, out_sim)):
+        p = _p(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(p), np.concatenate(lst, 0))
+        outs.append(_rel(p))
+    return {"real_png": outs[0], "sim_png": outs[1], "brick_start": st}

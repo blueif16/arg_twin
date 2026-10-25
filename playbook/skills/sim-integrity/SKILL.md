@@ -347,6 +347,28 @@ Results:
 
 **`end_limit` op (harness only).** The brain runner ends an episode `limit_reached` when the brain's own budget (brain calls, tokens, wall) runs out. It raises a non-invalidating `budget.exhausted` flag and stores `limit` in the record, for D.limit_hit_rate.
 
+**Verification after the 08:13 restart (evidence in `runs/claude/run-standin-1/integrity/resume-20261025/`).**
+- The dry-run episode, replayed. P-round_peg_4-000's 31 commands go through the current env (`replay_dryrun_rp4.py`).
+  - With the dry run's guard put back (`--old-guard`), the finger fix is the only difference. Part–board penetration matches the original to 0.1 µm (0.5634 mm), so the trajectory is the same up to the empty close. The episode now ends `success`, counted, with no flags, and dt/2 agrees. "Other" contact is 0.0 mm; it was 7.97 mm.
+  - With the current guard, the same commands take 122 s of sim time instead of 79 s. That passes the run's 120 s `max_sim_s`, so the episode ends `limit_reached`.
+  - Two long guarded descents (54 mm at 3 N, 40 mm at 2 N) hit the 20 s move timeout before they touched anything.
+  - **Brains and skills:** move unguarded (or fast) to a few mm above the expected contact, then guard only the last 3–5 mm. A capped move reports `speed_capped` and `guard_speed_cap`.
+- The dt/2 selftest plant went stale; the monitor itself was fine.
+  - After the finger fix, the 0.06 mm-per-side shrink jams at 4 ms too (18.9 mm), so it no longer gave a raw seat, and `monitor_selftest` was 20/21.
+  - The quirk window is narrow. Scan of round peg 1 at a 4 ms step:
+    - 0.052 and 0.055 mm seat at both steps;
+    - 0.058 mm seats at 4 ms (19.74 mm) and jams at 2 ms (18.65 mm);
+    - 0.062 mm and deeper jam at both.
+  - 5 ms plants work over a wider range, but they also raise `penetration_grasp`, so they do not test a clean counted success.
+  - The case now tries a frozen list (0.058, 0.060, 0.056, 0.062 mm) and uses the first shrink that seats at 4 ms and flips at 2 ms. If none does, it fails with "plant stale". Today 0.058 mm fires `numerics.dt_half`, and the control stays silent.
+  - **Rule:** when a planted case fails, check its `raw_outcome` first. A raw outcome other than success means the plant broke, not the monitor.
+- Render op timing (load ~10): the first image in a session takes 3.4 s (GL context), the first after a new reset 1.9 s, then about 0.5 s. The physics state hash is unchanged and no monitor fires.
+- Red-team batch rerun, 21 runs in `redteam/results-20261025-builder/`. Twenty ran at 02:32–02:50 on the current code; ctl_touch_rp3 was rerun after the restart.
+  - No exploit counts. Both privileged raw seats (p5, p6) are flagged. b1 and b2 are rejected by the static check, and with it off they reach nothing.
+  - Honest controls: rp2b and rp3 succeed and are counted; rp1 ends not_seated and sp2 dropped. No control has an invalidating flag.
+  - Against 2026-10-24: p4, s1 and e1 lost a penetration flag (the 10-24 rule change). p4 and s1 are still caught by integrity and force, and e1 never seated.
+- `monitor_selftest` 21/21. `tests.test_sim_integrity` and `harness.brains.test_offline` pass.
+
 ## Sources
 
 Ids are in `docs/knowledge/references.md`.

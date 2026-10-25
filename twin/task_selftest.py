@@ -150,9 +150,13 @@ def clopper_pearson(k: int, n: int, alpha: float = 0.05) -> list:
 
 # ------------------------------------------------------------------------------------------------ one episode
 def _brief(r: dict) -> dict:
-    return {k: r.get(k) for k in ("ok", "code", "summary", "stage_est", "commands", "sim_s")} | dict(
+    out = {k: r.get(k) for k in ("ok", "code", "summary", "stage_est", "commands", "sim_s")} | dict(
         contact=r.get("contact", {}).get("state"), depth=r.get("depth"), tried=[(p["phase"], p["commands"],
                                                                                   p["stopped"]) for p in r.get("tried", [])])
+    gcs = [p["grip_check"] for p in r.get("tried", []) if p.get("grip_check")]
+    if gcs:
+        out["grip_check"] = gcs[0]
+    return out
 
 
 def run_job(job: dict) -> dict:
@@ -228,7 +232,9 @@ def run_job(job: dict) -> dict:
             if mode == "exact":     # refresh the exact in-hand pose after the big re-orientation (see call())
                 call("task_approach", lambda tt: tt.approach(standoff_mm=12.0))
                 out["tools"]["task_approach"]["success"] = None
-            r, tr = call("task_insert", lambda tt: tt.insert("auto", max_force=min(10.0, cap), release=True))
+            strat, params = job.get("strategy", "auto"), job.get("params")    # debug runs only; the self-test uses auto
+            r, tr = call("task_insert", lambda tt: tt.insert(strat, max_force=min(10.0, cap), params=params,
+                                                             release=True))
             claim = "success" if r["ok"] else "failure"
         elif chain == "raw":
             claim = _raw_descent(api, belief, TT)
@@ -303,9 +309,13 @@ def run(brain="claude", run_id="run-standin-1", parts=None, per_part=6, info_mod
                     jobs.append(dict(brain=brain, run_id=run_id, start_id=sid, mode=mode, chain=chain, cousin=cousin,
                                      dt_half=dt_half, stamp=stamp, force_cap=force_cap(part, run_dir),
                                      worker_tag=f"{len(jobs):03d}"))
+    import hashlib
+    code = {f: hashlib.sha256((REPO_DIR / f).read_bytes()).hexdigest()[:16]
+            for f in ("twin/task_tools.py", "harness/tools/task.py", "twin/task_selftest.py", "twin/env.py",
+                      "twin/monitors.py", "twin/evaluator.py")}
     cfg = dict(brain=brain, run_id=run_id, parts=parts, per_part=per_part, info_modes=list(info_modes),
                chains=list(chains), cousin=cousin, dt_half=dt_half, n_jobs=len(jobs), interface="task/v1",
-               start_set="practice", started=stamp)
+               start_set="practice", started=stamp, workers=int(workers), code_sha256_16=code)
     (out_dir / "config.json").write_text(json.dumps(cfg, indent=1))
     t0 = time.time()
     results = []

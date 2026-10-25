@@ -116,7 +116,10 @@ def fit_brick(cams: dict, blobs: dict, table_z: float | None = None, x0=None) ->
     if x0 is None:
         p = _ray_point(cams, blobs) if len(blobs) > 1 else None
         if p is None and table_z is not None:
-            # one view: intersect the blob-centroid ray with the plane z = table + half a brick
+            # one view: intersect the blob-centroid ray with the plane z = table + half a brick. Added after the
+            # frozen gate run (2026-10-25), when 6 of 15 gate starts had no side-view blob and the replay crashed.
+            # Train check (side blob dropped): up-only vs two-view start 1.0 mm median, 3.1 mm max
+            # (runs/claude/run-so101-1/fix_train/one_view_train.json).
             (k, b), = blobs.items()
             ys, xs = np.nonzero(b)
             c, d = cams[k].ray(np.array([[xs.mean(), ys.mean()]]))

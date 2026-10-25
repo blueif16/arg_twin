@@ -58,7 +58,7 @@ Never the start's offsets, the evaluator or MjData. The env already separates tr
 The stage a tool reports is `stage_est`, estimated from observations. The evaluator's rubric uses the TRUE hole, so returning it mid-episode would leak where the hole is. It comes only from `env_finish`, on practice starts.
 
 **3. Feedback conventions (Show-Harness: the written conventions carry the grounding [show-harness-2026]).** Every tool returns the same shape:
-- `ok` and `code`, from a closed list: OK, NO_CONTACT, UNEXPECTED_CONTACT, NOT_FOUND, JAMMED, SHALLOW, NO_SURFACE_REF, NOT_HOLDING, FORCE_LIMIT, EPISODE_OVER, ENV_ERROR, BAD_ARGS;
+- `ok` and `code`, from a closed list: OK, NO_CONTACT, UNEXPECTED_CONTACT, NOT_FOUND, JAMMED, SHALLOW, NO_SURFACE_REF, NOT_HOLDING, FORCE_LIMIT, GRIP_SLIP, EPISODE_OVER, ENV_ERROR, BAD_ARGS;
 - `summary`: text with numbers;
 - `tried`: the phases, their commands and why each stopped;
 - `contact {state, force_N, force_hole_N, torque_Nm, touch_point_hole_mm}`;
@@ -72,6 +72,14 @@ Units are mm, N, deg and m/s, in the hole frame. Each tool's description says wh
 - The tools cap force again at the family's 99th-percentile real peak (13.8 N round, 12.6 N square) [forge-plus-2026].
 - Defaults sit inside the real envelope where the twin allows it (Lessons).
 - Mind the env's progress monitors. `progress.stuck` stalls an episode after 40 commands or 60 sim s with no true depth or stage progress, so a blind search gets about 32 moves. `progress.repeat` stalls it after 6 near-identical moves, so never re-send the same target.
+
+**4a. Check the grip before searching.** One tip contact cannot tell an along-pad offset from an in-hand tilt: both move the touch point along the pads. A grip that turns can still be seen. Press twice, standing still (about 1.5 N, then 3 N), and compare:
+- the contact point in the HAND frame (the wrench's line of action cut with the believed-tip plane);
+- how far the hand sank.
+
+A rigid grip moves neither (< 0.15 mm, < 0.1 mm). A turning grip moves the contact ≥ 0.5 mm and lets the hand sink ≥ 0.15 mm; both must hold, because a flat face's centre of pressure can wander without sinking. Then searching or pushing only turns the part further and fakes a drop. So `task_search` and `task_insert` refuse with GRIP_SLIP until the brain corrects the grip. The tool hands over a rough tilt from atan(sink / shift) and a suggested `corrections.grip`. Also watch the gripper width: fingers closing > 1 mm past their width at the approach mean the part is slipping out.
+
+**Corrections change what memory means.** Contact memory in TCP coordinates (touch height, touch point, engaged) is stale once the grip changes, so the harness forgets it when a `grip` correction arrives. Keep the progress counters (`deepest_s`, `commands_since_drop`): the env's no-progress count runs on. Only a correction that gives `grasp_from_top_mm` narrows the tip-height band.
 
 **4b. Keep the call log complete.** A tool that drives the env must leave the same trail a brain would. Every env command goes to `runs/calls/` as an `env_*` line with the caller, session and a `parent` pointer to the tool call (`harness/tools/task.py` `SocketAPI`). Check it: `twin.practice_view.episode_log(session)` must rebuild exactly the env record's command list.
 
@@ -118,12 +126,22 @@ Units are mm, N, deg and m/s, in the hole frame. Each tool's description says wh
   - The push now starts at 6 N, the real median peak; only later rounds go to the ceiling.
   - GRIP_SLIP is reported when the hand goes more than 1.5 mm past the seat depth.
   - Neither fixes the believed round peg 1 cases: the in-hand tilt is unknown and the pads let the part turn. That needs a perceived grip correction (`corrections.grip.pivot_deg`, e.g. from the wrist view) or a regrasp.
-  - The search's tilt strategy (`strategy: tilt`) exists but is untested.
+- **What turns the part, measured** (resume run, 2026-10-25 08:30; watcher-side contact logger `runs/claude/run-standin-1/task_tools/scripts/dbg_contact.py`). On round peg 1-000 (believed), the tilt relative to the hole axis was 7.1° in the start file, 9.7° after the hand turned, 14.8° after the first touch, 16.9° after the probe and 22° within 8 search moves. Each step moved the contact along the pads (10.4 → 12.0 → 15.2 mm in the hand) and lowered the TCP; the search read the lowering as a drop.
+  - The env's target filter (time constant about 0.2 s) keeps the probe's deep target pressing during the first search moves: |F| read 4.5, 4.1, 3.6, 3.0, 2.4 N on moves meant to press 0.8 N. That extra press helps turn thin pegs. Open: keep each spring ceiling near its press.
+- **Tilt-then-insert does not fix in-hand tilt.** `strategy: tilt` on round peg 1 (believed): on 1-000 a false drop at 22° and a jam at 1.9 mm. On 1-001 the part ended seated, but the fingers had closed from 3.2 to 1.0 mm and the env flagged `plausibility.penetration_grasp` and `plausibility.teleport`: a success that does not count, reported by the tool as OK. Hence the width check above, so the tool now reports GRIP_SLIP instead.
+- **The grip check, measured.** Between a 1.5 N and a 3 N press:
+  - round peg 1-000 and 1-001 (believed, 12–17° in-hand tilt): the contact moved 1.74 and 1.70 mm in the hand and the hand sank 0.39 and 0.40 mm. The tools stopped after 12 commands with the part at 16.8° and 12.6°, instead of turning it to 64° and 44° over 43–49 commands.
+  - round peg 2-000 and 2-002 (believed, rigid): 0.03–0.14 mm and 0.05–0.09 mm.
+- **Recovery with the suggested correction** (`scripts/loop_recover.py`, believed information, the "brain" applies `suggested_grip` and re-approaches):
+  - 1-000: the suggestion (pivot 12.5°) cut the tilt from 16.8° to 4.9°. The search found the hole (true depth 1.7 mm, 0.21 mm off axis). The push then took the tip to 18.4 of 20 mm before the part slid 3.9 mm up in the fingers (GRIP_SLIP, not seated).
+  - 1-001: the suggestion (13.3°) cut the tilt from 12.6° to 1.7°, but the search then read a 1.0 mm drop with the tip still on the surface 4.2 mm off, and the episode stalled. The stall came from forgetting `deepest_s` with the grip memory, so a re-approach counted as progress; that is fixed.
+  - So the rough tilt helps, but a 4 mm peg in a 0.05 mm-clearance hole needs better than ±5°: a wrist-view estimate or a regrasp.
 - **The env's guarded stop overshoots** (1.5 N requested → 5.6–10.9 N measured by the practice dry run). The env builder fixed it in env code (twin/env.py, 2026-10-25 02:25): every move with a `stop_force` is now capped at 1.5–3 mm/s (`GUARD_SPEED_TABLE`), with a peak tolerance of max(0.5, 0.2 × stop_force).
   - The tools do not compensate. They report the force at the stop and the env's measured overshoot (`tried[].force_at_stop_N`, `env_stop_overshoot_N`).
   - They adapted to the new interface. Free-space legs (approach, the lead-in to the contact band, re-aims, the retreat) are unguarded moves with an 8–15 N spring ceiling, checked after the move (|F − F_ref| ≥ 3 N counts as unexpected contact). Only the band where contact is possible is guarded.
   - Guarded moves carry no tool-side timeout. Before this change, the approach legs guarded at 3 N crawled at 2 mm/s, and the timed band timed out at 3 mm depth in the hole (an aborted self-test run, `selftest/20261025-021137-aborted-envchange`).
-  - Lesson: a tool built on another agent's env must re-run its self-test whenever `twin/env.py` changes. The manifest records the env hash the tools were tested with.
+  - Lesson: a tool built on another agent's env must re-run its self-test whenever `twin/env.py` changes. The manifest records the env hash the tools were tested with, and each self-test's `config.json` records the hashes of the tool, env, monitor and evaluator files.
+- **Guard only where contact is possible.** At 1.5–3 mm/s, a guarded leg longer than about 30 mm runs into the env's 20 s move timeout. The downward guarded leg now ends where an untouched tip must already be in the hole (height uncertainty + 2 mm + 1.5 mm past the believed surface). That is about 25 mm uncorrected (≤ 15 s) and 8.5 mm with a known height (about 5 s). Everything above the band is an unguarded move with the post-check.
 
 ## Sources
 

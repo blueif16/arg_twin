@@ -2,7 +2,7 @@
 
 A 1-day hackathon build on Google's **Gemini 4 Argon**. Argon reads real robot footage, rebuilds the scene as a MuJoCo simulation (a "digital twin"), writes the success checks, then practises the task inside the twin until it is reliable. The work it has figured out gets compiled into fast routines, so each later attempt costs fewer tokens and less time.
 
-> **Status, 2026-10-25 08:30 PDT.** Everything below is **sim only** and **provisional**. No real arm has confirmed any result. The Argon API key is not set yet, so every result so far comes from **Claude agents standing in for Argon** (the "Claude stand-in" brain). When Argon runs, its skill library is wiped first, so its improvement is its own. Claude and Argon numbers are never merged.
+> **Status, 2026-10-25 09:15 PDT.** Everything below is **sim only** and **provisional**. No real arm has confirmed any result. The Argon API key is not set yet, so every result so far comes from **Claude agents standing in for Argon** (the "Claude stand-in" brain). When Argon runs, its skill library is wiped first, so its improvement is its own. Claude and Argon numbers are never merged.
 
 Contents: [1. The plan](#1-the-plan) · [2. Status](#2-status) · [3. What's hard](#3-whats-hard-so-far) · [4. How results are kept honest](#4-how-results-are-kept-honest) · [5. Data tracks](#5-data-tracks) · [6. Repo map and reading order](#6-repo-map-and-reading-order) · [7. Running it](#7-running-it)
 
@@ -60,7 +60,7 @@ Argon turns real robot footage into a simulated world shaped around the task, th
 
 ## 2. Status
 
-As of 2026-10-25 08:30 PDT. The full running record, with every decision and its reasoning, is [`docs/design/progress-log.md`](docs/design/progress-log.md).
+As of 2026-10-25 09:15 PDT. The full running record, with every decision and its reasoning, is [`docs/design/progress-log.md`](docs/design/progress-log.md).
 
 ### The overnight run
 
@@ -74,33 +74,37 @@ Checks and targets are frozen in [`playbook/validation.yaml`](playbook/validatio
 
 | Stage | Checks passing | Key numbers | Notes |
 |---|---|---|---|
-| **A** Read footage | 1/3 | Segment F1 **0.961** (≥ 0.8 ✓); success balanced accuracy **0.78** (≥ 0.8 ✗); claims grounded **0.667** (≥ 0.9 ✗, it swapped USB and Ethernet); ~13k tokens per recording minute | Blind read of 3 gate episodes. The refined skill (part from *which hole* it enters, outcome from end-state physics) reached bacc 0.892 and part ID 0.96 on held-out train. A fresh blind re-test on 3 new gate episodes is running. |
+| **A** Read footage | **3/3** (one provisional) | Segment F1 **0.996**; success balanced accuracy **0.954**, provisional (12 real failures, under the 30 a firm claim needs); claims grounded **0.958** (23/24, all checked); ~32k tokens per recording minute (tracked) | Blind re-test of the refined skill on 3 new gate episodes. The refined skill names the part from *which hole* it enters and judges the outcome from end-state physics. The old skill scored 0.961 / 0.78 / 0.667 on 3 other gate episodes. A confirmation read of 6 more gate episodes, drawn by seed and fixed before scoring, is running. |
 | **B0** World frame | 5/6 | Static cameras 1.4–1.7 px, two-view 0.17 px, tool tip 0.14 mm, board 2.37 mm | Episode 0 passes 6/6 (wrist 5.82 px). Episode 1 re-run from scratch: the wrist camera fails at 26 px because too few board points are visible. The latest record shows as a regression. |
 | **B1** Parts and contact | 4/4 | Settle penetration 0.038 mm; aligned seat 100%, misaligned jam 100%, dt/2 agreement 100% | Pegs only |
 | **B2** Replay vs reality | 1/6 | Free-space tracking **0.62 mm** ✓. Best twin (v3) seats **54%** of real attempts vs **78%** real (needs within 10 points); force KS 0.31 (needs ≤ 0.20) | **The main blocker.** The twin is systematically too strict (see §3). Two fixes are being fitted in parallel. |
 | **C** Task tools | not scored yet | Tools built; self-test running | |
-| **D** Practice | not scored yet | First end-to-end dry run: 3 of 6 practice starts counted | Dry run, never scored |
+| **D** Practice | not scored yet | First end-to-end dry run: 3 of 6 practice starts counted | Dry run, never scored. All four harness fixes from it are done: false flag, fast rendering, force stops within 0.31 N, budget stop. Red team still 0 counted exploits. |
 | **E** Compile | not scored yet | First routine (`peg_insert_guarded`, zero brain calls): round peg 4 seated 3/3 on practice starts, but too slow for the real-data speed envelope | Pilot |
 | **G** Integrity | 3/5 | Red-team catch rate **1.0** (15/15 planted cheats caught); sandbox escapes **0**; rule violations **0**; exam reads **4** ✗ | Exam episodes 9 and 10 leaked through a listing tool before a guard existed, so they're burned for the Claude brain only. They stay clean for Argon. The leak is fixed at the root. |
-| **T2** SO-101 track | not scored yet | Frozen gate run: side camera **1.06 px**; overhead camera **152 px** (the auto-marker locked onto the wrong teal blob); grasp-to-brick **16.5 mm** median | User ruling: this first gate run is the result of record. Fixes are validated on train only and any rerun is labelled "fixed after gate". |
+| **T2** SO-101 track | 1/5, parked | Watcher, frozen gate run (the result of record): keypoints **7.44 px** (side 2.5, overhead 14.9) ✗; two-view 5.1 px ✗; grasp-to-brick **16.5 mm** ✗; replay **4/15** bricks in the box ✗; shifted-brick control 0/9 ✓ | On train the tools work: cameras 3.8–6.4 px, brick start 2.0 mm. The gate fails because the split cut by episode number puts gate bricks 35° of pan beyond any train start, where the joint map is ~2 cm off. All 50 episodes are used now, so a fix can only be shown on new data. |
 
-### Running now (relaunched 08:24)
+### Running now
 
 | Agent | Working on |
 |---|---|
 | B2 5a | Fit global contact parameters (hole clearance, friction, contact softness) as a distribution, QBIT style, on train with recording-level cross-validation. First screen: softer contact made it *worse* (25% seat rate). |
 | B2 5b | A physical grasp-compliance model (soft pads, rotational give in the grasp) identified from measured tilt and slip, holes kept nominal |
-| Environment fixes | Guarded-stop force overshoot (a 1.5 N stop hit 5.6–10.9 N), an empty-close false flag, a render op, a `limit_reached` op |
-| Task tools (C) | Finish the self-test (exact vs believed info), handle the 5.5–7.1° in-hand tilt on round peg 1, log every env command |
-| Compile (E) | Fix the routine's envelope violations, cousins pilot |
-| SO-101 (T2) | Validate the marker fix on train, publish overlays and a replay video |
-| Blind re-test (A) | Read gate episodes 99, 102 and 103 cold |
+| Task tools (C) | Rerun the self-test on the fixed env (exact vs believed info), handle the 5.5–7.1° in-hand tilt on round peg 1, log every env command |
+| Compile (E) | Fix the routine's envelope violations on the fixed env, cousins pilot |
+| A confirmation | Read 6 more gate episodes cold (24, 42, 58, 65, 92, 117) |
+
+Finished since the restart:
+- **Environment fixes.** Side effect: force-guarded moves are slower now, so brains guard only the last 3–5 mm.
+- **SO-101.**
+- **The blind re-test.**
+- **A page fix:** steps with work but no scores now show "◐ not scored yet" on the flowchart.
 
 **B2 selection rule, fixed in advance:** the formulation with the lower train-CV seat-rate error wins, provided it also passes the loose-twin negative control. The watcher then scores gate once with the winner.
 
 ### Next, in order
 
-1. The watcher scores everything pending: C tool success, A on the re-test, B2 gate with the winner, T2 checks.
+1. The watcher scores what's pending: C tool success, A on the 9 refined-skill episodes, and B2 gate with the winner.
 2. **Attempt 1, the baseline**: a stand-in on frozen held-out starts (29 per part, enough for a ≥ 0.9 claim) with a frozen budget.
 3. **Attempt N** on the same starts, with task tools and practice. Measures tokens, calls and time per success.
 4. **Compile**: promote the best routine through the full gate, then rerun with zero brain calls.
@@ -118,7 +122,8 @@ Checks and targets are frozen in [`playbook/validation.yaml`](playbook/validatio
   A force-matched particle filter on the GPU (round 4) made things worse. The rig seated 8–15% of its worlds against ~50% for the CPU replay.
 - **The log hides the in-hand pose.** The recording leaves the part's pose in the gripper about 6 mm uncertain, against 0.05–0.25 mm clearance. That's why the agreed B2 gate is distribution-level (seat rate and force spread) rather than per-attempt prediction, which plateaued at ~0.65 accuracy.
 - **The wrist camera needs evidence.** Calibration works when enough board points are in view (5.8 px on episode 0) and fails on thin evidence (17–26 px on episode 1).
-- **Reading footage:** naming the part from the hole it goes into, and judging success from the end state, fixed most errors. The skill had misled the reader on connector grip widths and on "no nut travel means failure".
+- **Reading footage:** naming the part from the hole it goes into, and judging success from the end state, fixed most errors. The skill had misled the reader on connector grip widths and on "no nut travel means failure". Reading costs about 32k tokens per recording minute, measured from transcript usage. An earlier 13k figure was a self-estimate and undercounted.
+- **Splits must cover the workspace (SO-101).** Cutting train and gate by episode number left the gate's brick positions outside anything train covered. The playbook now asks for a coverage check, and a joint-units step, before fitting.
 - **Practice:** the brain controls through a narrow env API with force and speed caps enforced in code. The first dry run found three harness bugs: a false integrity flag, a slow image path, and guarded stops overshooting their force limit. Fixes are in progress.
 
 Published evidence behind each decision is in [`docs/knowledge/`](docs/knowledge/). Every claim there is referenced; the originals are kept locally and not in git.

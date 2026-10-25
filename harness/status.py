@@ -26,7 +26,9 @@ Sources (only validation.yaml is required; everything else may be missing):
 Every record sits on one data track and one loop step (place): the page builds every track's view at build time
 and switches between them in the browser. Judging lives here (judge, brain_view, stage states) so the record_check
 tool, status_summary and the page always agree. Results are grouped by brain and never merged: a Claude stand-in
-number and an Argon number are separate rows everywhere.
+number and an Argon number are separate rows everywhere. A step's state comes only from its checks; a brain's events
+and media on a step with no measured check (activity) show it on the page as in progress, not scored yet, never as a
+verdict.
 """
 
 from __future__ import annotations
@@ -398,6 +400,46 @@ def media_file(ref: str) -> dict:
 EXPLAIN_DIR = "runs/explain/"  # cut_clip's folder: a published clip from here is footage, not a result
 
 
+def media_place(val: dict, m: dict) -> tuple[str, str | None]:
+    """A media item's (track, step); a clip cut for people (runs/explain/) published without a step is the footage."""
+    track, step = place(val, m.get("stage"), m.get("track"), m.get("step"), None, m.get("run_id"))
+    if not m.get("step") and str((m.get("paths") or [""])[0]).startswith(EXPLAIN_DIR):
+        step = INPUT
+    return track, step
+
+
+def activity(val: dict) -> dict:
+    """Work on record per brain, data track and loop step, scored or not: the events and media items placed there.
+
+    brain -> track -> step -> {"events": n, "media": n, "t": latest}. It judges nothing: a step's `state` still comes
+    only from its checks. The page shows a step with work but no measured check as in progress, not scored yet.
+    Brains never mix: a record with no brain counts for no brain, and a track's footage (step 'input') is no step's work.
+    """
+    out: dict = {}
+
+    def add(rec: dict, track: str, step: str | None, kind: str) -> None:
+        b = brain_key(rec.get("brain"))
+        if not b or step not in val["loop_ids"]:
+            return
+        a = out.setdefault(b, {}).setdefault(track, {}).setdefault(step, {"events": 0, "media": 0, "t": 0})
+        a[kind] += 1
+        a["t"] = max(a["t"], num(rec.get("t")) or 0)
+
+    for e in read_jsonl(events_path()):
+        add(e, *place(val, e.get("stage"), e.get("track"), e.get("step"), e.get("check_id"), e.get("run_id")), "events")
+    for m in read_jsonl(media_path()):
+        add(m, *media_place(val, m), "media")
+    return out
+
+
+def with_activity(sv: dict, a: dict | None) -> dict:
+    """A step's check-based view (stage_view) plus the work on record there. `state` stays the checks' verdict, as in
+    status_summary; `unscored` marks work with no measured check yet, which the page shows as ◐ not scored yet."""
+    ev, md = int((a or {}).get("events") or 0), int((a or {}).get("media") or 0)
+    return {**sv, "events": ev, "media": md, "act_t": (a or {}).get("t") or None,
+            "unscored": not sv["measured"] and ev + md > 0}
+
+
 def media_items(val: dict) -> list[dict]:
     out = []
     for m in sorted(read_jsonl(media_path()), key=lambda m: -m.get("t", 0)):
@@ -408,9 +450,7 @@ def media_items(val: dict) -> list[dict]:
                 c = val["index"][k][1]
                 row.update(name=c["name"], target=target_text(c), state=judge(c["direction"], c["target"], row["v"]))
             metrics.append(row)
-        track, step = place(val, m.get("stage"), m.get("track"), m.get("step"), None, m.get("run_id"))
-        if not m.get("step") and str((m.get("paths") or [""])[0]).startswith(EXPLAIN_DIR):
-            step = INPUT  # a clip cut for people, published without a step: the track's footage
+        track, step = media_place(val, m)
         out.append({"id": m.get("id"), "t": m.get("t"), "stage": m.get("stage"), "track": track, "step": step,
                     "title": m.get("title", ""),
                     "kind": m.get("kind", "image"), "caption": m.get("caption", ""), "metrics": metrics,
@@ -1151,7 +1191,9 @@ def collect() -> dict:
     val = load_validation()
     records = read_jsonl(checks_path())
     results = {}
-    for brain, rs in by_brain(records).items():
+    groups, act = by_brain(records), activity(val)
+    for brain in list(groups) + sorted(set(act) - set(groups)):  # a brain with work on record but no measurement yet too
+        rs = groups.get(brain, [])
         view = brain_view(rs, val)
         checks = {}
         for cid, cv in view["checks"].items():
@@ -1159,13 +1201,16 @@ def collect() -> dict:
             checks[cid] = {"state": cv["state"], "regressed": cv["regressed"], "ever_passed": cv["ever_passed"],
                            "hist": [[r.get("t"), num(r.get("value")), r.get("state")] for r in recs[-MAX_HIST:]],
                            "recent": [page_record(r) for r in reversed(recs[-MAX_RECENT:])], "n": len(recs)}
-        # every track's view of the loop: its checks placed on each step, judged with this brain's records
+        # every track's view of the loop: its checks placed on each step, judged with this brain's records, plus this
+        # brain's events and media there (n counts measurements, act the work on record)
         tracks = {}
         for t in val["tracks"]:
             own = {c for ids in t["steps"].values() for c in ids}
-            tracks[t["id"]] = {"n": sum(r.get("check_id") in own for r in rs), "stages": {
-                x: stage_view({"id": x, "checks": [val["index"][c][1] for c in ids]}, view["checks"])
-                for x, ids in t["steps"].items()}}
+            mine = act.get(brain, {}).get(t["id"], {})
+            tracks[t["id"]] = {"n": sum(r.get("check_id") in own for r in rs),
+                               "act": sum(a["events"] + a["media"] for a in mine.values()), "stages": {
+                x: with_activity(stage_view({"id": x, "checks": [val["index"][c][1] for c in ids]}, view["checks"]),
+                                 mine.get(x)) for x, ids in t["steps"].items()}}
         results[brain] = {"checks": checks, "n": len(rs), "tracks": tracks}
     events, per_track = [], defaultdict(int)
     for e in sorted(read_jsonl(events_path()), key=lambda e: -e.get("t", 0)):
@@ -1239,8 +1284,8 @@ def build(bundle: bool = False) -> Path:
 
 def summary(brain: str | None = None, stage: str | None = None) -> dict:
     val = load_validation()
-    groups = by_brain(read_jsonl(checks_path()))
-    want = [brain_key(brain)] if brain else (sorted(groups) or ["claude", "argon"])
+    groups, act = by_brain(read_jsonl(checks_path())), activity(val)
+    want = [brain_key(brain)] if brain else (sorted(set(groups) | set(act)) or ["claude", "argon"])
     out = {"validation_version": val["version"], "page": rel(page_path()), "brains": {}}
     for b in want:
         view = brain_view(groups.get(b, []), val)
@@ -1250,6 +1295,19 @@ def summary(brain: str | None = None, stage: str | None = None) -> dict:
                 continue
             sv = view["stages"][s["id"]]
             row = {"name": s["name"], "state": sv["state"], "pass": f"{sv['passed']}/{sv['gated']}"}
+            # `state` is the checks' verdict only; `activity` adds this brain's events and media on the step, and
+            # `unscored_work` marks work with no measured check yet (the page's "in progress, not scored yet")
+            mine = act.get(b, {}).get(s["track"], {})
+            if s["role"] != "track" and (a := mine.get(s["id"])):
+                row["activity"] = {"events": a["events"], "media": a["media"]}
+                if not sv["measured"]:
+                    row["unscored_work"] = True
+            elif s["role"] == "track" and mine:  # a track's container: its work per loop step
+                tv = {x: stage_view({"id": x, "checks": [val["index"][c][1] for c in ids]}, view["checks"])
+                      for t in val["tracks"] if t["id"] == s["track"] for x, ids in t["steps"].items()}
+                row["activity"] = {x: {"events": a["events"], "media": a["media"]}
+                                   | ({"unscored_work": True} if not (tv.get(x) or {}).get("measured") else {})
+                                   for x, a in mine.items()}
             if s["role"] == "track":  # another data track's container: each check names its loop step
                 row["track"] = s["track"]
             meas = {}
@@ -1284,6 +1342,9 @@ def main() -> None:
     data = collect()
     states = {b: {tid: {x: v["state"] for x, v in tv["stages"].items() if v["total"]}
                   for tid, tv in r["tracks"].items() if tv["n"]} for b, r in data["results"].items()}
+    states = {b: v for b, v in states.items() if v}
+    unscored = {b: {tid: [x for x, v in tv["stages"].items() if v["unscored"]] for tid, tv in r["tracks"].items()
+                    if any(v["unscored"] for v in tv["stages"].values())} for b, r in data["results"].items()}
 
     def track_line(t: dict) -> str:
         steps = [x for x, ids in t["steps"].items() if ids]
@@ -1298,6 +1359,8 @@ def main() -> None:
             "media": len(data["media"]), "states": states or "not measured yet",
             "skills": {s["id"]: s["skills"] for s in data["story"]["sections"]} | {"loop": data["loop_skills"]},
             "tracks": {t["id"]: track_line(t) for t in data["tracks"]}}
+    if unscored := {b: v for b, v in unscored.items() if v}:  # steps with work on record, no measured check yet
+        info["unscored_work"] = unscored
     if data["skill_warnings"]:
         info["skill_warnings"] = data["skill_warnings"]
     if data["track_warnings"]:

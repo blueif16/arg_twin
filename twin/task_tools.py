@@ -47,6 +47,7 @@ hole, +y along the hole's long side.
 
 from __future__ import annotations
 
+import json
 import math
 
 import numpy as np
@@ -75,6 +76,14 @@ SLOW_SPEED_KNOWN = 0.003       # m/s: the same when the height is known (correct
 K_DEFAULT = 500.0              # N/m: REASSEMBLE's translational stiffness (cousins 200-800); the probe measures it
 TIP_SHIFT_MIN_MM = 0.5         # touch-point corrections smaller than this are ignored
 TIP_SHIFT_MAX_MM = 12.0        # and larger ones clipped (in-hand offset p90 5.4 mm + tilt lever ~8 mm)
+# Grip check (the probe presses twice, ~1.5 N then probe_force, standing still): a part that turns in the pads moves
+# its contact point in the HAND frame and lets the hand sink. Measured 2026-10-25 (author-tools Lessons), 1.5 -> 3 N:
+# rigid grips (round peg 2) moved the contact 0.03-0.14 mm and sank 0.05-0.09 mm; round peg 1 at 12-17 deg in-hand
+# tilt moved it 1.70-1.74 mm and sank 0.39-0.40 mm. The thresholds sit between; both must be exceeded (a flat face's
+# centre of pressure can wander without the hand sinking).
+PIVOT_SHIFT_MM = 0.5           # contact moved at least this far in the hand frame between the two presses
+PIVOT_SINK_MM = 0.15           # and the hand sank at least this much: the part is turning in the fingers
+GRIP_CLOSE_MM = 1.0            # the fingers closed this much further than at the approach: the part is slipping out
 STAGES_EST = ("no_approach", "lifted", "above_target_believed", "contact", "engaged", "seated_est", "released")
 CODES = {
     "OK": "the tool reached its postcondition",
@@ -86,8 +95,9 @@ CODES = {
     "NO_SURFACE_REF": "the tool needs a surface touch first (task_move_until_contact down)",
     "NOT_HOLDING": "the gripper is open or empty",
     "FORCE_LIMIT": "a force above the tool's ceiling, or a pull during a retreat",
-    "GRIP_SLIP": "the hand travelled further than the part can (past the seat): the part is turning or sliding in the "
-                 "fingers; thin pegs do this under a few newtons",
+    "GRIP_SLIP": "the part is turning or sliding in the fingers: a probe press moved its contact in the hand and let "
+                 "the hand sink (grip check), the fingers closed > 1 mm further than at the approach, or the hand "
+                 "travelled past the seat; thin pegs do this under a few newtons",
     "EPISODE_OVER": "the env ended the episode (budget, stall or finish): reset to a start",
     "ENV_ERROR": "the env refused a command; the message says why",
     "BAD_ARGS": "an argument is out of range or of the wrong kind",
@@ -144,6 +154,10 @@ def ry(a):
     return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
 
 
+def json_dumps(x) -> str:
+    return json.dumps(x)
+
+
 def _r(v, k=3):
     return [round(float(x), k) for x in np.asarray(v, float).ravel()]
 
@@ -163,7 +177,8 @@ def believed(task: dict, corrections: dict | None = None) -> dict:
     pg = task.get("part_geometry", {})
     L = float(pg.get("length_mm", 50.0)) / 1000.0
     g = dict(dx_mm=0.0, dy_mm=0.0, grasp_from_top_mm=NOMINAL_GRASP_FROM_TOP_MM, pivot_deg=0.0, rock_deg=0.0)
-    grip_given = bool(c.get("grip"))
+    # the tip's height is known only if the grasp height is: a pivot-only correction leaves the height uncertainty
+    grip_given = "grasp_from_top_mm" in (c.get("grip") or {})
     g.update({k: float(v) for k, v in (c.get("grip") or {}).items() if k in g})
     Rin = rx(math.radians(g["rock_deg"])) @ ry(math.radians(g["pivot_deg"]))
     tip = (np.array([g["dx_mm"] / 1000, g["dy_mm"] / 1000, -PAD_TO_TCP])
@@ -178,9 +193,26 @@ def believed(task: dict, corrections: dict | None = None) -> dict:
                   clearance_mm=h["clearance_per_side_mm"], seat_depth_mm=h["seat_depth_mm"]),
         grip=dict(tip_tcp=tip.tolist(), R_in=Rin.tolist(), **g),
         part_geometry=pg, corrections=c,
-        # how far off the tip's height can be: the grasp height (9 +- 5 mm prior, 2-19 mm) and board z (1.6 mm)
+        # how far off the tip's height can be: the grasp height (9 +- 5 mm prior, 2-19 mm) and board z (1.6 mm);
+        # small only when the correction gives the grasp height
         axial_sigma_mm=1.5 if grip_given else 10.0,
         note="believed = task() nominal board + nominal grasp" + ("; corrected by the caller" if c else ""))
+
+
+# Memory that is measured in TCP coordinates or about the old grip: stale once the brain corrects the grip (the tip
+# then sits elsewhere relative to the TCP). The harness drops these when a `grip` correction arrives.
+# deepest_s and cmds_since_drop stay: the env's no-progress count runs on regardless, and forgetting the deepest TCP
+# depth would let a re-approach count as progress (a recovery run on round peg 1-001 stalled that way).
+GRIP_DEPENDENT_MEMORY = ("q_hand", "surface_s", "surface_s_est", "touch_tcp", "touch_point_hole_mm", "tip_shift_mm",
+                         "engaged", "found_at_hole_mm", "grip_pivot")
+
+
+def forget_grip_dependent(memory: dict) -> list:
+    """Drop the memory entries a grip correction makes stale; returns their names."""
+    gone = [k for k in GRIP_DEPENDENT_MEMORY if k in memory]
+    for k in gone:
+        memory.pop(k, None)
+    return gone
 
 
 def _B(belief: dict):
@@ -354,6 +386,50 @@ class TaskTools:
     def holding(self, o=None) -> bool:
         return float((o or self.last)["gripper_width_m"]) < 0.075
 
+    def grip_closed_mm(self, o=None) -> float | None:
+        """How much further the fingers have closed since the approach (mm; None before an approach). The fingers
+        hold the part at a fixed width; closing further means the part is squeezing out or turning between them."""
+        w0 = self.mem.get("grip_width_mm")
+        if w0 is None:
+            return None
+        return round(float(w0) - 1000 * float((o or self.last)["gripper_width_m"]), 3)
+
+    def grip_lost(self, o=None) -> bool:
+        c = self.grip_closed_mm(o)
+        return c is not None and c > GRIP_CLOSE_MM
+
+    def contact_hand(self, o=None):
+        """Where the wrench's line of action meets the believed-tip plane, relative to the TCP in the HAND frame
+        (x along the pads, y across; mm). None when |F - F_ref| < PROBE_MIN_N or the force is too horizontal."""
+        o = o or self.last
+        F, T = self.F(o), self.tau(o)
+        f2 = float(F @ F)
+        if f2 < PROBE_MIN_N ** 2:
+            return None
+        n = F / math.sqrt(f2)
+        if abs(float(n @ self.zin)) < 0.3:
+            return None
+        base = self.p(o) + np.cross(F, T) / f2
+        lam = (float(self.tip(o) @ self.zin) - float(base @ self.zin)) / float(n @ self.zin)
+        Rh = quat_to_mat(self.q(o))
+        return (Rh.T @ (base + lam * n - self.p(o)))[:2] * 1000.0
+
+    def pivot_block(self, tool):
+        """A report refusing to press on, if a grip check found the part turning in the fingers and the brain has not
+        corrected the grip since (a corrected grip is the brain's own estimate: the tools then trust it)."""
+        gp = self.mem.get("grip_pivot")
+        if not gp or self.b.get("corrections", {}).get("grip"):
+            return None
+        return self.report(tool, False, "GRIP_SLIP",
+                           f"the part turns in the fingers: under the probe press its contact moved "
+                           f"{gp['contact_shift_mm']:.2f} mm in the hand while the hand sank {gp['sink_mm']:.2f} mm "
+                           f"(a rigid grip: < {PIVOT_SHIFT_MM} mm / < {PIVOT_SINK_MM} mm). Searching or pushing would "
+                           "turn it further (round peg 1: 15 -> 64 deg) and fake a drop. Rough in-hand tilt from the "
+                           f"sink/shift ratio: {gp.get('tilt_est_deg')} deg (it folds in the along-pad offset). Correct "
+                           f"the grip (e.g. corrections.grip = {json_dumps(gp.get('suggested_grip'))}, or better an "
+                           "estimate from the wrist view) and re-approach, or regrasp", contact_state="surface",
+                           grip_pivot=gp)
+
     def settle(self, goal_pos, R_goal, pos_tol_mm=0.3, rot_tol_deg=0.7, max_s=12.0, step_s=2.0) -> dict:
         """Wait until the hand has converged on its target. The env's rotational spring is capped at
         force_max x 0.05 m, so large re-orientations creep at about 2 deg/s (Lessons)."""
@@ -487,6 +563,8 @@ class TaskTools:
             return self.report(tool, False, "NOT_HOLDING", "the gripper is open: nothing to insert")
         if self.fmag(o) < CONTACT_N and not self.mem.get("surface_s"):
             self._ref_force()
+        if self.mem.get("grip_width_mm") is None:
+            self.mem["grip_width_mm"] = round(1000 * float(o["gripper_width_m"]), 3)
         Rh = hand_rotation(self.b, self.q(o))
         self.mem["q_hand"] = _r(mat_to_quat(Rh), 6)
         qh = mat_to_quat(Rh)
@@ -607,7 +685,15 @@ class TaskTools:
                     target = self.p() + dvec * (float(distance_mm) / 1000.0 - float((self.p() - p_start) @ dvec))
                 if slow:
                     v = SLOW_SPEED if self.b["axial_sigma_mm"] >= 3 else SLOW_SPEED_KNOWN
-                    # guarded: the env caps the speed by the stop force (1.5-3 mm/s), so no timeout is passed
+                    # guard only the band where contact is possible: end it where an untouched tip must be in the
+                    # hole (height uncertainty + 2 mm + 1.5 mm past the believed surface), so a guarded leg (the env
+                    # caps it at 1.5-3 mm/s by the stop force) never runs into the env's 20 s move timeout
+                    end_s = float(self.H @ self.zin) + (self.b["axial_sigma_mm"] + ENGAGE_MM + 1.5) / 1000.0
+                    room = end_s - float(self.tip() @ self.zin)
+                    rest = float((target - self.p()) @ dvec)
+                    if 0.0 < room < rest:
+                        target = self.p() + dvec * room
+                    # no timeout is passed: the env sets it from the capped speed
                     r = self.move(target, speed=v, force_max=max_force, stop_force=max(1.5, 0.7 * stop_force))
             else:
                 r = self.move(target, speed=speed, force_max=max_force, stop_force=stop_force)
@@ -641,7 +727,7 @@ class TaskTools:
             if why == "stop_force":
                 s_hit = self.s()
                 if down and probe_force:
-                    probe = self.probe(probe_force)
+                    probe = self.probe(probe_force, check_grip=True)
                     tp = probe.get("touch_point_hole_mm")
                 ss = self.s()
                 bel = self.depth()["below_believed_surface_mm"]
@@ -689,24 +775,60 @@ class TaskTools:
             msg += f"; the part touches at ({tp[0]:.1f}, {tp[1]:.1f}) mm from the believed hole axis"
         if probe:
             msg += f"; probe press {probe['force_N']:.1f} N, sank {probe['sank_mm']:.2f} mm"
+            gc = probe.get("grip_check") or {}
+            if gc.get("pivot"):
+                msg += (f". GRIP CHECK: the part turns in the fingers (contact moved {gc['contact_shift_mm']:.2f} mm in "
+                        f"the hand, hand sank {gc['sink_mm']:.2f} mm between the two presses); task_search and "
+                        "task_insert will refuse until the grip is corrected (corrections.grip) or the part regrasped")
         return self.report(tool, True, "OK", msg, contact_state=cls, probe=probe,
                            stop=dict(force_N=round(F_stop, 2), depth=d))
 
-    def probe(self, force=3.0, hold_s=0.4, line_point=None) -> dict:
+    def probe(self, force=3.0, hold_s=0.4, line_point=None, check_grip=False) -> dict:
         """Steady press along the hole axis: command a target force/k below (on line_point's lateral position if
         given) with the ceiling at force, hold, read. Returns the force, how far the TCP sank, the stiffness estimate
-        and the static touch point."""
+        and the static touch point. With check_grip it first presses at about half the force and compares the two
+        presses (grip_check): a part turning in the fingers moves its contact point in the hand frame and lets the
+        hand sink; a rigid grip does neither (PIVOT_SHIFT_MM, PIVOT_SINK_MM)."""
         n0 = self.n_cmd
         k = float(self.mem.get("k_est_N_m") or K_DEFAULT)
         s0 = self.s()
-        depth_cmd = max(0.002, 1.5 * force / k)
         base = self.p() if line_point is None else np.asarray(line_point, float)
         base = base + self.zin * (self.s() - float(base @ self.zin))
+        gc = None
+        if check_grip and force >= 2.5:
+            f1 = max(PROBE_MIN_N + 0.5, 0.5 * force)
+            tgt1 = base + self.zin * max(0.0015, 1.5 * f1 / k)
+            d1 = float(np.linalg.norm(tgt1 - self.p()))
+            self.move(tgt1, speed=0.01, force_max=f1, timeout=d1 / 0.01 + 0.3)
+            o1 = self.last
+            c1, s1, F1 = self.contact_hand(o1), self.s(o1), self.fmag(o1)
+        depth_cmd = max(0.002, 1.5 * force / k)
         tgt = base + self.zin * depth_cmd
         dist = float(np.linalg.norm(tgt - self.p()))
         self.move(tgt, speed=0.01, force_max=force, timeout=dist / 0.01 + 0.2)
         self.wait(hold_s)
         o = self.last
+        if check_grip and force >= 2.5:
+            c2, s2, F2 = self.contact_hand(o), self.s(o), self.fmag(o)
+            if c1 is not None and c2 is not None and F2 - F1 > 0.5:
+                shift = float(np.linalg.norm(np.asarray(c2) - np.asarray(c1)))
+                sink = 1000 * (s2 - s1)
+                pivot = shift >= PIVOT_SHIFT_MM and PIVOT_SINK_MM <= sink < DROP_MM   # a deeper sink: over the hole
+                gc = dict(contact_hand_mm=_r(c2, 2), contact_shift_mm=round(shift, 3), sink_mm=round(sink, 3),
+                          force_step_N=[round(F1, 2), round(F2, 2)], pivot=bool(pivot))
+                if pivot:
+                    # pivot about the pads with the tip contact fixed: the hand sinks x_c * dth while the contact moves
+                    # z_c * dth in the hand, so atan(sink / shift) is the contact's angle off the hand axis seen from
+                    # the pads: a rough in-hand tilt (it also folds in the along-pad offset); sign from the direction
+                    u = (np.asarray(c2) - np.asarray(c1)) / max(shift, 1e-9)
+                    tilt = math.degrees(math.atan2(sink, shift))
+                    self.mem["grip_pivot"] = dict(contact_shift_mm=round(shift, 3), sink_mm=round(sink, 3),
+                                                  direction_hand=_r(u, 2), tilt_est_deg=round(tilt, 1),
+                                                  suggested_grip=dict(pivot_deg=round(tilt * float(u[0]), 1),
+                                                                      rock_deg=round(-tilt * float(u[1]), 1)))
+            else:
+                gc = dict(contact_hand_mm=None if c2 is None else _r(c2, 2), pivot=None,
+                          note="too little force to compare the two presses")
         Fax = abs(float(self.F(o) @ self.zin))
         err = float((tgt - self.p(o)) @ self.zin)
         if err > 0.0005 and Fax > PROBE_MIN_N and Fax < 0.95 * force:
@@ -714,6 +836,8 @@ class TaskTools:
         tp = self.touch_point(o)
         out = dict(force_N=round(self.fmag(o), 2), sank_mm=round(1000 * (self.s(o) - s0), 3),
                    k_est_N_m=self.mem.get("k_est_N_m"), touch_point_hole_mm=None if tp is None else _r(tp, 2))
+        if gc is not None:
+            out["grip_check"] = gc
         self._phase("probe", n0, "held", **out)
         return out
 
@@ -783,6 +907,9 @@ class TaskTools:
                                "no surface touch yet: call task_move_until_contact (down) first")
         if pattern not in ("spiral", "raster"):
             return self.report(tool, False, "BAD_ARGS", "pattern must be spiral | raster")
+        pb = self.pivot_block(tool)
+        if pb:
+            return pb
         s0 = float(self.mem["surface_s"])
         n_eff = max(4, min(int(max_moves), self.moves_left() - (3 if center == "hole" else 0)))
         auto = self.search_defaults(n_eff)
@@ -797,6 +924,7 @@ class TaskTools:
         n0 = self.n_cmd
         found = False
         capped = False
+        slip = False
         candidates = 0
         path = 0.0
         prev = np.zeros(2)
@@ -829,6 +957,9 @@ class TaskTools:
                 self.move(tgt, qh, speed=speed, force_max=max_force, timeout=seg / speed + 0.15)
                 path += seg * 1000
                 prev = np.array([x, y])
+                if self.grip_lost():
+                    slip = True
+                    break
                 sank = 1000 * (self.s() - s0)
                 if sank >= drop_mm:
                     found = True
@@ -846,6 +977,12 @@ class TaskTools:
             return self.report(tool, False, "EPISODE_OVER", "the episode ended during the search")
         o = self.last
         drop = 1000 * (self.s(o) - s0)
+        if slip:
+            self._phase("search", n0, "grip_slip", path_mm=round(path, 1), grip_closed_mm=self.grip_closed_mm(o))
+            return self.report(tool, False, "GRIP_SLIP",
+                               f"the fingers closed {self.grip_closed_mm(o):.1f} mm further than at the approach during "
+                               "the search: the part is turning or slipping out of the grip. Lift and regrasp",
+                               contact_state="surface")
         self._phase("search", n0, "dropped" if found else ("budget" if capped else "pattern_done"), pattern=pattern,
                     radius_mm=round(float(radius_mm), 2), pitch_mm=round(float(pitch_mm), 2), candidates=candidates,
                     path_mm=round(path, 1),
@@ -900,8 +1037,8 @@ class TaskTools:
             fm = min(max_force, FIRST_PUSH_N) if w == 0 else max_force
             self.move(tgt, qh, speed=speed, force_max=fm, timeout=dist / speed + 0.8)
             d = 1000 * (self.s() - s0)
-            if d > seat + SLIP_MM:
-                slip = True     # the tip cannot go below the seat floor: the part turned or slid in the fingers
+            if d > seat + SLIP_MM or self.grip_lost():
+                slip = True     # past the seat floor, or the fingers closed further: the part turned or slid in them
                 break
             if d >= seat - SEAT_TOL_MM:
                 break
@@ -936,7 +1073,8 @@ class TaskTools:
         self._phase("push", n0, "grip_slip" if slip else ("jam" if jam else "seated_est"),
                     depth_below_touch_mm=round(d, 2), wiggle_rounds=w, aligned_deg=round(aligned_deg, 2))
         return dict(depth_mm=round(d, 2), seated_est=(not slip) and d >= seat - SEAT_TOL_MM, jam=jam, slip=slip,
-                    wiggle_rounds=w, aligned_deg=round(aligned_deg, 2), force_N=round(self.fmag(), 2))
+                    wiggle_rounds=w, aligned_deg=round(aligned_deg, 2), force_N=round(self.fmag(), 2),
+                    grip_closed_mm=self.grip_closed_mm())
 
     # ------------------------------------------------------------------------------------------ insert
     def insert(self, strategy="auto", max_force=MAX_FORCE_DEFAULT, params: dict | None = None,
@@ -988,6 +1126,10 @@ class TaskTools:
                                                 learn_tip=bool(P["learn_tip"]))
                     if not g["ok"] and not self.mem.get("engaged"):
                         return self.report(tool, False, g["code"], "descent: " + g["summary"])
+                if not self.mem.get("engaged"):
+                    pb = self.pivot_block(tool)
+                    if pb:
+                        return pb
                 if not self.mem.get("engaged") and strategy != "press":
                     if not self.mem.get("engaged"):
                         if strategy == "tilt":
@@ -1004,10 +1146,13 @@ class TaskTools:
         except _EpisodeOver:
             return self.report(tool, False, "EPISODE_OVER", "the episode ended during the insertion")
         if pr.get("slip"):
+            why = (f"the fingers closed {pr['grip_closed_mm']:.1f} mm further than at the approach"
+                   if (pr.get("grip_closed_mm") or 0) > GRIP_CLOSE_MM else
+                   f"the hand went {pr['depth_mm']:.1f} mm past the first touch, deeper than the seat "
+                   f"({self.b['hole']['seat_depth_mm']} mm)")
             return self.report(tool, False, "GRIP_SLIP",
-                               f"the hand went {pr['depth_mm']:.1f} mm past the first touch, deeper than the seat "
-                               f"({self.b['hole']['seat_depth_mm']} mm): the part is turning or sliding in the fingers. "
-                               "Lift, release and regrasp, or retry with a lower max_force", contact_state="jam", push=pr)
+                               why + ": the part is turning or sliding in the fingers. Lift, release and regrasp, or "
+                               "retry with a lower max_force", contact_state="jam", push=pr)
         if not pr["seated_est"]:
             code = "JAMMED" if pr["jam"] else "SHALLOW"
             return self.report(tool, False, code,
@@ -1045,6 +1190,8 @@ class TaskTools:
                             P["max_moves"], P["chord_mm"] or auto["chord_mm"]):
             tgt = c + self.Re[:, :2] @ (np.array([x, y]) / 1000.0) + self.zin * 0.004
             self.move(tgt, mat_to_quat(Rt), speed=P["search_speed"], force_max=P["press_force"], timeout=0.6)
+            if self.grip_lost():
+                break
             if 1000 * (self.s() - s_t) >= 0.5:
                 found = True
                 break
@@ -1088,6 +1235,10 @@ class TaskTools:
         ok = opened and not pulled
         msg = (f"fingers {1000 * w0:.1f} -> {1000 * w1:.1f} mm; retreated {retreat_mm} mm "
                + ("with no pull" if not pulled else f"but something pulled ({self.fmag():.1f} N)"))
+        wa = self.mem.get("grip_width_mm")
+        if wa is not None and float(wa) - 1000 * w0 > GRIP_CLOSE_MM:
+            msg += (f". Before opening, the fingers were {float(wa) - 1000 * w0:.1f} mm narrower than at the approach: "
+                    "the part had slipped in the grip, so the seat estimate is doubtful")
         return self.report(tool, ok, "OK" if ok else ("FORCE_LIMIT" if pulled else "NOT_HOLDING"), msg)
 
     # ------------------------------------------------------------------------------------------ state

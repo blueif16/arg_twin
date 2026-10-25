@@ -627,12 +627,14 @@ if (GS) gsap.registerPlugin(ScrollTrigger, ...(STO ? [ScrollToPlugin] : []));
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // state -> [css class, glyph, words]; glyph and words travel with every colour, so colour never carries meaning alone
+// unscored: work on record (events, media) on a step with no measured check yet; it is "in progress", never a verdict
 const SS = {not_started: ['none', '○', 'not started'], in_progress: ['prog', '◐', 'in progress'],
+  unscored: ['prog', '◐', 'in progress · not scored yet'],
   passing: ['pass', '✓', 'passing'], failing: ['fail', '✕', 'failing'], regressed: ['regr', '▼', 'regressed']};
 const CS = {pass: ['pass', '✓', 'meets target'], fail: ['fail', '✕', 'below target'], regr: ['regr', '▼', 'regressed'],
   track: ['track', '~', 'tracked, no target'], none: ['none', '○', 'not measured yet']};
 const EK = {milestone: ['pass', '▲'], regression: ['regr', '▼'], blocker: ['regr', '■'], decision: ['prog', '◆'], note: ['none', '●']};
-const WORST = ['regressed', 'failing', 'in_progress', 'passing', 'not_started'];
+const WORST = ['regressed', 'failing', 'in_progress', 'unscored', 'passing', 'not_started'];
 const XP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5L9 7M6.5 13.5h-4v-4M2.5 13.5L7 9"/></svg>';
 const xp = (lab) => `<button type="button" class="xp" aria-label="${esc(lab)}" aria-haspopup="dialog">${XP}</button>`;
 
@@ -664,8 +666,12 @@ const label = (b) => D.brain_labels[b] || b;
 const tag = (b) => (b === 'claude' ? 'stand-in' : String(label(b)).toLowerCase());
 const res = (b) => D.results[b];
 const tres = (b, t = cur) => (res(b) && res(b).tracks[t]) || null;  // one brain's results on one track
-const shown = (t = cur) => (sel === 'all' ? D.brains.filter((b) => (tres(b, t) || {}).n) : [sel]);
-const stageView = (b, sid, t = cur) => { const r = tres(b, t); return r ? r.stages[sid] || null : null; };
+// brains on the page: every brain with measurements or work (events, media) on the track, or the one picked
+const shown = (t = cur) => (sel === 'all' ? D.brains.filter((b) => { const r = tres(b, t); return r && (r.n || r.act); }) : [sel]);
+const measuredBy = (bs, t = cur) => bs.some((b) => (tres(b, t) || {}).n);
+// a step as one brain sees it; status.py marks work with no measured check `unscored`: shown ◐ "not scored yet"
+const stageView = (b, sid, t = cur) => { const r = tres(b, t), v = r ? r.stages[sid] || null : null;
+  return v && v.unscored ? {...v, state: 'unscored'} : v; };
 const checkView = (b, cid) => (res(b) ? res(b).checks[cid] || null : null);
 const cstate = (cv) => (!cv ? 'none' : cv.regressed ? 'regr' : cv.state);
 const latest = (cv) => (cv ? cv.recent[0] : null);
@@ -749,10 +755,13 @@ function wrapLines(text, n, max = 2) {
   return lines.filter(Boolean);
 }
 
-// a section's state for one brain on one track: its worst stage, but a mix of passing and unstarted stages is "in progress"
+// a section's state for one brain on one track: its worst stage, but a mix of passing and unstarted stages is "in progress".
+// Work with no measured check anywhere in the section is "unscored"; once any check is measured, the checks alone decide.
 function secState(sec, b, t = cur) {
-  const sts = sec.stages.map((id) => (stageView(b, id, t) || {}).state || 'not_started');
-  if (sts.every((x) => x === 'not_started')) return 'not_started';
+  const raw = sec.stages.map((id) => (stageView(b, id, t) || {}).state || 'not_started');
+  if (raw.every((x) => x === 'not_started')) return 'not_started';
+  if (raw.every((x) => x === 'not_started' || x === 'unscored')) return 'unscored';
+  const sts = raw.map((x) => (x === 'unscored' ? 'not_started' : x));
   const w = worstOf(sts);
   return (w === 'passing' || w === 'not_started') && sts.some((x) => x !== 'passing') ? 'in_progress' : w;
 }
@@ -769,11 +778,10 @@ const secClass = (sec, st) => sclass(RAW[sec.stages[0]], st);
 const secWorst = (sec, t = cur) => { const bs = shown(t); return bs.length ? worstOf(bs.map((b) => secState(sec, b, t))) : 'not_started'; };
 // data has reached a section when any shown brain measured one of its checks or published a visual for it, on this track
 const secLive = (sec) => shown().some((b) => sec.stages.some((id) => (stageView(b, id) || {}).measured)) || mediaFor(sec.stages).length > 0;
+// the latest work on a section: shown brains' measurements, events and media there (status.py act_t), brains never mixed
 function secActivity(sec) {
   let t = 0;
-  for (const b of shown()) for (const id of sec.stages) t = Math.max(t, (stageView(b, id) || {}).last_t || 0);
-  for (const e of evOf()) if (sec.stages.includes(e.step)) t = Math.max(t, e.t || 0);
-  for (const m of mediaFor(sec.stages)) t = Math.max(t, m.t || 0);
+  for (const b of shown()) for (const id of sec.stages) { const v = stageView(b, id) || {}; t = Math.max(t, v.last_t || 0, v.act_t || 0); }
   return t;
 }
 function activeSec() {  // where work happened last: the one yellow node
@@ -882,13 +890,15 @@ function nodeSVG(sec, x, w, on) {
     `<text class="gl s-${cls}" x="${x + w - 14}" y="${y + 25}" text-anchor="end">${SS[st][1]}</text>`;
   t += tl.length > 1 ? tl.map((l, i) => `<text class="t sm" x="${cx}" y="${y + 48 + i * 18}" text-anchor="middle">${esc(l)}</text>`).join('')
     : `<text class="t" x="${cx}" y="${y + 58}" text-anchor="middle">${esc(name)}</text>`;
-  const lines = bs.length ? bs.map((b) => {
+  // work with no measured check says so in words, never as a count of checks that pass
+  const un = bs.length === 1 && secState(sec, bs[0]) === 'unscored';
+  const lines = !bs.length ? ['not started'] : un ? ['in progress', 'not scored yet'] : bs.map((b) => {
     const k = secCounts(sec, b), s2 = secState(sec, b);
-    const txt = s2 === 'not_started' ? 'not started' : k.gated ? `${k.passed}/${k.gated} checks pass` : `${k.measured} tracked`;
+    const txt = s2 === 'not_started' ? 'not started' : s2 === 'unscored' ? 'not scored' : k.gated ? `${k.passed}/${k.gated} checks pass` : `${k.measured} tracked`;
     return (bs.length > 1 ? tag(b) + ' ' : '') + txt;
-  }) : ['not started'];
-  const y0 = y + (bs.length > 1 ? 82 : 88);
-  t += lines.map((l, i) => `<text class="s${bs.length > 1 || l.length > 18 ? ' xs' : ''}" x="${cx}" y="${y0 + i * 15}" text-anchor="middle">${esc(l)}</text>`).join('');
+  });
+  const y0 = y + (un ? 80 : bs.length > 1 ? 82 : 88), dy = un ? 14 : 15;
+  t += lines.map((l, i) => `<text class="s${un || bs.length > 1 || l.length > 18 ? ' xs' : ''}" x="${cx}" y="${y0 + i * dy}" text-anchor="middle">${esc(l)}</text>`).join('');
   if (sec.stages.length > 1) {
     const b0 = bs[0];
     const pips = sec.stages.map((id, i) => {
@@ -905,7 +915,8 @@ function stateWords(sec, t = cur) {
   const bs = shown(t);
   if (!bs.length) return 'not started';
   return bs.map((b) => { const k = secCounts(sec, b, t), s2 = secState(sec, b, t);
-    return (bs.length > 1 ? tag(b) + ' ' : '') + (s2 === 'not_started' ? 'not started' : k.gated ? `${k.passed}/${k.gated} pass` : SS[s2][2]); }).join(', ');
+    return (bs.length > 1 ? tag(b) + ' ' : '') + (s2 === 'not_started' ? 'not started' : s2 === 'unscored' ? (bs.length > 1 ? 'not scored yet' : SS[s2][2])
+      : k.gated ? `${k.passed}/${k.gated} pass` : SS[s2][2]); }).join(', ');
 }
 // the data-source switcher: one row per track (status glyph and words, passing gated checks per brain, never merged)
 // an active track's ◐ is its status (the tooltip says "active"); a track not started says so in words
@@ -1063,14 +1074,14 @@ function flowSVG() {
   return `<svg class="fl${trackState(T()) === 'not_started' ? ' off' : ''}" viewBox="0 0 ${FW} ${FH}" role="group" aria-label="${esc(alt)}">${back}${front}</svg>`;
 }
 function cover() {
-  const none = !shown().length && !!activeSec();  // with no work anywhere, the track's card in the loop says so
+  const none = !measuredBy(shown()) && !!activeSec();  // work on record but no measurement yet: the key says so
   return `<div class="cover-head"><h1>${esc(S.title)}</h1><div class="cover-r"><p class="sub">${esc(S.subtitle)}</p></div></div>` +
     (S.error ? `<p class="warn">${esc(S.error)}</p>` : '') +
     `<figure class="flow"><div class="fsc">${flowSVG()}</div>` +
     `<figcaption class="key"><span><i class="kf"></i>data has passed</span><span><i class="ki"></i>nothing yet</span><span><i class="ko"></i>latest work</span>` +
     `<span><i class="kc"></i>clip: click to watch</span>` +
     `<span><i class="ks">skill</i><i class="ks plan"><b class="gl s-none">○</b>planned</i></span>` +
-    Object.values(SS).map(([c, g, w]) => `<span class="s-${c}"><b class="gl">${g}</b>${w}</span>`).join('') +
+    Object.entries(SS).filter(([k]) => k !== 'unscored').map(([, [c, g, w]]) => `<span class="s-${c}"><b class="gl">${g}</b>${w}</span>`).join('') +
     (none ? `<span>nothing measured yet${sel === 'all' ? '' : ' for ' + esc(label(sel))}</span>` : '') + '</figcaption></figure>';
 }
 
@@ -1094,7 +1105,7 @@ function stageChip(s) {
   const parts = bs.length ? bs.map((b) => {
     const v = stageView(b, s.id), st = v ? v.state : 'not_started';
     return `<span class="s-${sclass(s, st)}"><b class="gl" title="${esc(SS[st][2])}">${SS[st][1]}</b>${bs.length > 1 ? ' ' + esc(tag(b)) : ''}` +
-      `${v && v.measured && v.gated ? ` ${v.passed}/${v.gated}` : ''}</span>`;
+      `${v && v.measured && v.gated ? ` ${v.passed}/${v.gated}` : st === 'unscored' ? ' not scored yet' : ''}</span>`;
   }).join(' ') : '<span class="s-none"><b class="gl">○</b></span>';
   return `<button type="button" class="chip" data-open="checks|${esc(s.id)}" title="${esc(s.name)} (${esc(s.id)}): open its checks">${esc(s.name)} ${parts}</button>`;
 }
@@ -1119,7 +1130,9 @@ function checksTile(sec) {
     return `<div class="tile t-checks"><p class="th">Checks <span>none yet</span></p><p class="note">No checks on this step yet for ${esc(tlabel())}. ` +
       `Checks go into <code>validation.yaml</code> before any work starts${T().primary ? '' : `, each with <code>step: ${esc(sec.stages[0])}</code>`}.</p></div>`;
   }
-  const head = bs.length === 1 ? (() => { const k = secCounts(sec, bs[0]); return k.gated ? `${k.passed} of ${k.gated} gated pass` : `${n} checks`; })() : `${n} checks`;
+  const head = bs.length === 1 ? (() => { const k = secCounts(sec, bs[0]);  // nothing measured is never "0 of N pass"
+    return !k.measured ? (secState(sec, bs[0]) === 'unscored' ? `${n} checks · not scored yet` : `${n} checks · none measured yet`)
+      : k.gated ? `${k.passed} of ${k.gated} gated pass` : `${n} checks`; })() : `${n} checks`;
   const rows = stages.map((s) => (stages.length > 1 ? `<li class="cg">${esc(s.name)}</li>` : '') + s.checks.map((c) => checkRow(c, bs)).join('')).join('');
   return `<div class="tile t-checks" data-open="checks|${esc(sec.id)}"><p class="th">Checks <span>${esc(head)}</span></p><ul class="cl">${rows}</ul>${xp('All checks with history')}</div>`;
 }
@@ -1450,7 +1463,7 @@ const SHEETS = {
     // the same loop, this track's state on each step; a row switches the page to this track and opens the step
     h += `<h3>Steps</h3><ol class="tlist">${SECS.map((s) => { const w = secWorst(s, t.id), k = SS[w], n = ST(s, t.id).checks;
       return `<li class="s-${secClass(s, w)}"><b class="gl" title="${esc(k[2])}">${k[1]}</b><div><p><button type="button" class="lnk" data-go="${esc(s.id)}" data-track="${esc(t.id)}">` +
-        `${esc(secKicker(s) === s.node ? s.node : `${secKicker(s)} · ${s.node}`)}</button></p><span class="m">${esc(n ? `${stateWords(s, t.id)} · ${pl(n, 'check')}` : 'no checks on this step yet')}</span></div></li>`; }).join('')}</ol>`;
+        `${esc(secKicker(s) === s.node ? s.node : `${secKicker(s)} · ${s.node}`)}</button></p><span class="m">${esc(n ? `${stateWords(s, t.id)} · ${pl(n, 'check')}` : w === 'unscored' ? `${stateWords(s, t.id)} · no checks on this step yet` : 'no checks on this step yet')}</span></div></li>`; }).join('')}</ol>`;
     const logs = (D.decisions || {})[t.id] || [];
     if (logs.length) h += `<h3>Decision logs</h3><div class="callers">${logs.map((r) => `<div><b>${esc(r.run_id)}</b> ${esc(tag(r.brain))}, ` +
       `${pl(r.n, 'decision')}, ${ago(r.last_t)} · <a href="${esc(r.href)}" target="_blank" rel="noopener">log</a></div>`).join('')}</div>`;

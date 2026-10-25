@@ -37,7 +37,9 @@ _CORR = {"corrections": {
                    "(kept until the next env_reset). hole_shift_mm: [x, y] or [x, y, z] mm, where you think the true "
                    "hole entry is in the believed hole frame. grip: {dx_mm (along the pads, hand x), dy_mm (across, "
                    "hand y), grasp_from_top_mm (nominal 9), pivot_deg (about hand y), rock_deg (about hand x)}. "
-                   "Omit to act on the nominal belief.",
+                   "Only a grip with grasp_from_top_mm narrows the tip-height band (~10 mm -> 1.5 mm). A grip "
+                   "correction forgets the contact memory measured with the old grip (touch height, touch point, "
+                   "engaged, grip check). Omit to act on the nominal belief.",
     "properties": {"hole_shift_mm": {"type": "array", "items": {"type": "number"}},
                    "grip": {"type": "object", "properties": {
                        "dx_mm": {"type": "number"}, "dy_mm": {"type": "number"},
@@ -168,6 +170,8 @@ def _open(session, brain, run_id, corrections, tool_name="task"):
             raise ValueError(f"unknown correction keys {sorted(bad)}; known: {sorted(TT.CORRECTION_KEYS)}")
         state["corrections"] = {**state.get("corrections", {}), **corrections}
         state["memory"].pop("q_hand", None)       # the part axis changed: re-align at the next approach
+        if corrections.get("grip"):               # the tip moved relative to the TCP: TCP-frame contact memory is stale
+            TT.forget_grip_dependent(state["memory"])
     task = api.task()
     if "hole" not in task:
         raise RuntimeError("no episode is running in this session: env_reset to a start first")
@@ -244,9 +248,14 @@ def task_approach(session: str, standoff_mm: float = 12.0, offset_mm: list | Non
       "hole), 'up', '+x', '-x', '+y', '-y' (hole frame) or a hole-frame vector, until |F - F_ref| >= stop_force. "
       "Downward: unguarded at `speed` to the top of the band where contact is possible (believed surface minus the "
       "height uncertainty and 2 mm: ~12 mm uncorrected, 3.5 mm corrected), converge sideways, then guarded through "
-      "the band (the env caps guarded moves at 1.5-3 mm/s by stop force). An early contact re-touches (lift 1.5 mm "
-      "back onto the commanded line, converge, touch again). Then it probes (a steady press of probe_force for "
-      "0.4 s: a tip over the hole sinks in; the static wrench gives the touch point; the arm stiffness is measured). "
+      "the band, which ends where an untouched tip must be in the hole (the env caps guarded moves at 1.5-3 mm/s by "
+      "stop force: ~13 s for the uncorrected 22 mm band, ~5 s corrected). An early contact re-touches (lift 1.5 mm "
+      "back onto the commanded line, converge, touch again). Then it probes: a press at ~half probe_force, then a "
+      "steady press of probe_force for 0.4 s (a tip over the hole sinks in; the static wrench gives the touch point; "
+      "the arm stiffness is measured). Grip check (probe.grip_check): between the two presses a part that turns in the "
+      "fingers moves its contact >= 0.5 mm in the hand frame AND lets the hand sink >= 0.15 mm (rigid grips: < 0.15 / "
+      "< 0.1 mm); then the summary says GRIP CHECK, memory.grip_pivot holds a rough tilt estimate and a suggested "
+      "grip correction, and task_search / task_insert refuse with GRIP_SLIP until the grip is corrected. "
       "contact.state: surface (the first downward touch sets the depth reference), in_hole (sank, or deeper than an "
       "earlier touch by 2 mm, or past the believed surface by more than the height uncertainty), none. relief_mm "
       "backs off afterwards. ok: contact made. NO_CONTACT with contact.state in_hole means the tip went down past the "
@@ -289,7 +298,9 @@ def task_move_until_contact(session: str, direction="down", distance_mm: float =
       "deeper (the env stalls an episode after 40), so control comes back with commands to spare. A sink of >= 0.5 mm "
       "(a chamfer caught on the edge) is checked with a confirming press, at most twice. Stops when the tip drops below the touch height. Keep pitch_mm under twice "
       "(chamfer + clearance): 0.9 mm for the 4 mm pegs, 1.7 mm for 8 mm. ok: dropped in (engaged). NOT_FOUND: the hole "
-      "is further than radius_mm (board error p90 4 mm) or the part is tilted in the hand. " + FEEDBACK,
+      "is further than radius_mm (board error p90 4 mm) or the part is tilted in the hand. GRIP_SLIP: the grip check "
+      "found the part turning in the fingers (nothing moved), or the fingers closed > 1 mm further during the search. "
+      + FEEDBACK,
       {"type": "object", "required": ["session"], "properties": {
           **_SES, "pattern": {"type": "string", "enum": ["spiral", "raster"], "default": "spiral"},
           "radius_mm": {"type": "number", "description": "mm; default: what max_moves chords cover, <= 8"},
@@ -328,7 +339,9 @@ def task_search(session: str, pattern: str = "spiral", radius_mm: float | None =
       "from the first touch point: useful when the touch point is further from the believed tip than the part radius). "
       "release: "
       "open and retreat after an estimated seat. ok: estimated seated (and released). Failure: JAMMED, SHALLOW, "
-      "GRIP_SLIP (the part turned in the fingers), NOT_FOUND, NO_CONTACT, UNEXPECTED_CONTACT. The episode's real outcome comes from env_finish. " + FEEDBACK,
+      "GRIP_SLIP (the part turns in the fingers: the grip check after the first touch, the fingers closing > 1 mm, or "
+      "the hand going past the seat; correct the grip or regrasp), NOT_FOUND, NO_CONTACT, UNEXPECTED_CONTACT. The "
+      "episode's real outcome comes from env_finish. " + FEEDBACK,
       {"type": "object", "required": ["session"], "properties": {
           **_SES, "strategy": {"type": "string", "enum": ["auto", "press", "spiral", "wiggle", "tilt"],
                                "default": "auto"},
