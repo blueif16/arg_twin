@@ -2,7 +2,7 @@
 
 Present from the Bot18 page: http://localhost:8765/runs/status/index.html.
 Every number below comes from `runs/orchestrator/story_numbers.md` (each line there names its findings file), or from the late-result files named in place.
-Status as of 16:46 PDT, 2026-10-25. Late results checked at 16:44: round 2, LIBERO compile and the fairness controls have landed; the compile vs one-shot paired test is due about 16:50.
+Status as of 16:49 PDT, 2026-10-25. Late results checked at 16:44 and 16:48: round 2, LIBERO compile, the compile vs one-shot paired test and the fairness controls have all landed. A larger fresh-init compile run is going until 16:57 (not included).
 
 ---
 
@@ -48,9 +48,9 @@ Page cue: the line in the cover frame reads "Same 10 skills for every source; on
 ### Stop 1. Practice → routine (compile): the strongest improvement
 - **Click:** cover → track **LIBERO** → step E, "Practice turns into a routine". Then track **REASSEMBLE** → step E, "Practice compiles into routines".
 - **Claim:** Practice compiles into a routine: one look, then 0 brain calls to act.
+- **Headline, paired vs one-shot (final 16:48, `runs/libero/compile-e/paired.jsonl`):** on the same 3 drawer starts (inits 6, 18, 38), by LIBERO's check: **compiled routine 3/3, one-shot Argon 1/3.** Cost per success **$0.0057 vs $1.09** (about 1/190). Calls per episode 1 vs 22; wall time 34–36 s vs 301–805 s. Both discordant starts favour the routine; exact McNemar p = 0.5 (n = 3 can't reach significance).
 - **Numbers:** LIBERO drawer (`runs/libero/compile-e/report.md`): one compile call ($0.043) from 3 successful practice trials; **3/3 new starts** opened by LIBERO's check, still true 1 s later. Per success, practice vs routine: **758 s vs 40 s, $0.61 vs $0.006**, 18.3 brain calls vs 1 look + 0. REASSEMBLE: 8/24 unseen starts vs Claude's routine 5/24, 42 s vs 186 s, 0 brain calls.
-- **Paired test vs one-shot on the same starts:** result pending at the time of writing.
-- **Caveat:** LIBERO is n = 3 in one scene, and the handle moves at most 2 cm. It shows the cost collapse, not robustness.
+- **Caveat:** "Direction, not proof." n = 3 in one scene, and the handle moves at most 2 cm. A larger fresh-init run is going until 16:57.
 
 ### Stop 2. Reward from video, plus the gate
 - **Click:** track **LIBERO** → step B, "Reward from video, gated before it is trusted" → card **"Reward v1 → v2 → v3"**.
@@ -90,7 +90,7 @@ Page cue: the line in the cover frame reads "Same 10 skills for every source; on
 
 ### Last stop. What's not proven (short)
 - **Click:** cover → card **"Not proven yet"**; LIBERO → step D → card **"One-shot vs loop"**.
-- **No success boost over one-shot on LIBERO yet:** paired on 5 starts, one-shot 2/5 vs our loop within 2 tries 1/5 (p = 1.0). Our arm practised on the over-strict reward v2, which never fired on a correct mug placement. "Reward quality dominates; the gate exists for exactly this; v3 is the fix and runs next."
+- **No significant success boost over one-shot on LIBERO yet:** during practice, paired on 5 starts, one-shot 2/5 vs our loop within 2 tries 1/5 (p = 1.0). After practice, the compiled drawer routine beat one-shot 3/3 vs 1/3 on the same starts (p = 0.5): the direction favours practice, but significance is not shown. Our arm practised on the over-strict reward v2, which never fired on a correct mug placement. "Reward quality dominates; the gate exists for exactly this; v3 is the fix and runs next."
 - **The twin's replay isn't certified (B2):** our audit found a leak worth about 0.10.
 
 ---
@@ -105,6 +105,7 @@ Page cue: the line in the cover frame reads "Same 10 skills for every source; on
 | Read-footage skill self-learning | bacc 0.78 | bacc 0.95 | **Partly.** Across runs of the same skill. |
 | Cameras (B0) | skill alone 4.46 px | skill's recipe 1.43 / 1.72 px | **Yes.** Same Argon, same cameras. |
 | **Compile, LIBERO drawer: practice vs routine, per success** | practice: 18.3 brain calls, 758 s, $0.61 | routine: 3/3 new starts, 1 look + 0 calls, 40 s, $0.006 | **Yes: same task, same check, new starts; small n** (n = 3, one scene, handle moves at most 2 cm). |
+| **Compiled routine vs one-shot Argon, LIBERO drawer (paired)** | one-shot 1/3, $1.09 / success, 22 calls / episode | routine 3/3, $0.0057 / success, 1 call / episode | **Yes: same starts, same check; small n.** n = 3, p = 0.5; one scene. Direction, not significance. |
 | Compile, REASSEMBLE unseen starts | Claude's routine 5/24, 186 s | Argon's routine 8/24, 42 s, 0 brain calls | **Yes.** Same unseen starts. Small n. |
 | LIBERO practice, round 1 | first try 3/9 | 5/9 by second try | **Partly.** Practice starts, not held out. |
 | **LIBERO one-shot vs our loop, round 2 (an honest loss)** | one-shot 2/5 (4/9 on all 9 starts, $1.00 / success) | first trial 0/5; loop within 2 tries 1/5 | **Yes, and it goes against us.** Paired n = 5, LIBERO's check, p = 1.0 (0.5 for first trial). Our arm practised on the over-strict reward v2. |
@@ -119,7 +120,7 @@ Page cue: the line in the cover frame reads "Same 10 skills for every source; on
 ## 6. "Not proven yet" (say it out loud)
 
 - **The vs-Google reading result is mostly conventions and frame rate.** The controls show the REASSEMBLE gap is leakage (0.59 vs 0.60 without our conventions) and the progress gap is frame rate. The method alone adds a modest gain (A101 0.38 → 0.45; LIBERO segmentation 0.63 → 0.85 at equal fps). A held-out claim needs new recordings.
-- **No scored held-out boost.** Every attempt-1 vs attempt-N number is on practice starts. On LIBERO, one-shot Argon (2/5) beat our loop practising on the over-strict reward v2 (1/5 within 2 tries) on 5 paired starts. No boost over one-shot is shown yet.
+- **No scored held-out boost.** Every attempt-1 vs attempt-N number is on practice starts. On LIBERO, one-shot Argon (2/5) beat our loop practising on the over-strict reward v2 (1/5 within 2 tries) on 5 paired starts. After practice, the compiled drawer routine beat one-shot 3/3 vs 1/3 on the same starts (p = 0.5). The direction favours practice, but significance is not shown.
 - **Loop 1, the twin, isn't certified.** The REASSEMBLE replay audit found a leak worth about 0.10.
 - **On the LIBERO anchor we're below the paper** (2/6 vs the paper's 31/60 on the same tasks; published 43% on LIBERO-10).
 - **Two rungs are designed but not run:** retries without feedback, and one-shot after practice.
@@ -131,8 +132,9 @@ Page cue: the line in the cover frame reads "Same 10 skills for every source; on
 
 - **"Is this Google's benchmark?"** No. Google published a prompt, not scores, and we don't have their videos. We ran their prompt verbatim on Argon, on our own labelled recordings, next to our skill. The claim is "our skill vs their published prompt, same model, same recordings". Our own controls show most of the gap is conventions and frame rate.
 - **"Is your reading better than Google's prompt?"** Mostly not by method. Most of the gap is conventions learned on the same recordings plus frame rate: on REASSEMBLE none survives (0.59 vs 0.60 without our conventions). The method alone gives a modest gain: Assembly101 0.38 → 0.45, LIBERO segmentation 0.63 → 0.85 at equal frame rate. A held-out claim needs new recordings.
-- **"Is there a held-out boost?"** No, not yet. Every attempt-1 vs attempt-N number is on practice starts. The closest positive is compile: LIBERO's drawer routine on 3 new starts (3/3, $0.006 vs $0.61 per success) and REASSEMBLE's routine on unseen starts (8/24 vs Claude's 5/24). That shows cost falling, not a scored held-out success boost.
+- **"Is there a held-out boost?"** No, not yet. Every attempt-1 vs attempt-N number is on practice starts. The closest positive is compile: on the same 3 drawer starts the routine went 3/3 vs one-shot's 1/3 (p = 0.5), and REASSEMBLE's routine seated 8/24 unseen starts vs Claude's 5/24. Direction and cost, not a significant held-out boost.
 - **"Your loop lost to one-shot?"** Yes, on round 2: 1/5 vs 2/5 on 5 paired starts, p = 1.0. Practice ran on an over-strict reward (v2) that never fired on a correct mug placement. Round 1, with the right reward, went 3/9 → 5/9, but it isn't paired with the one-shot run, so it's not a proven boost. Reward quality dominates; v3 is the fix and runs next on held-out starts.
+- **"So does your loop beat one-shot on actions?"** After practice, the compiled routine did: 3/3 vs 1/3 on the same starts, about 190× cheaper per success. That's direction, not significance (p = 0.5). During practice on a bad reward, it didn't.
 - **"Why is your LIBERO number below the paper's 43%?"** We reproduced the paper's protocol for 6 episodes: 2/6, where the paper scored 31/60 on the same tasks, at a similar cost ($5.70 vs $5.90 per episode). It's a small sample, and the published adapter's camera views are mirrored left to right. We show the gap rather than hide it.
 - **"Does it work on a real robot?"** Not yet. Everything is sim-only. REASSEMBLE is real robot footage, but the twin's replay isn't certified and nothing has run on a real arm.
 - **"What does Argon do that a smaller model can't?"** We did not run a smaller model head to head, so we don't claim that. What Argon does here: reads whole long recordings in one pass ($0.22 vs Claude's $0.32 per minute, both pass the same blind gate); writes the reward and the scene file from one video (3/3 scene files parsed first try); revises its own reward from gate evidence; audits traces (4/4 planted cheats). It is not better at everything: Claude raw matched it on REASSEMBLE practice (12/14 vs 11/14, p = 1.0).

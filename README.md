@@ -6,7 +6,7 @@ A 1-day hackathon build on Google's **Gemini 4 Argon** (`gemini-4-argon`).
 
 **[Presenter's guide](docs/presentation.md)**
 
-> **Status, 2026-10-25 16:45 PDT.** Every result is **sim only**. No real arm has confirmed anything (rule D5). Argon now runs on the paid key, and Claude and Argon numbers are kept apart. Every number below is copied from the orchestrator's sheet, [`runs/orchestrator/story_numbers.md`](runs/orchestrator/story_numbers.md), or from the findings file named next to it. `runs/` is not in git, so those paths exist on the build machine only.
+> **Status, 2026-10-25 16:50 PDT.** Every result is **sim only**. No real arm has confirmed anything (rule D5). Argon now runs on the paid key, and Claude and Argon numbers are kept apart. Every number below is copied from the orchestrator's sheet, [`runs/orchestrator/story_numbers.md`](runs/orchestrator/story_numbers.md), or from the findings file named next to it. `runs/` is not in git, so those paths exist on the build machine only.
 
 **Where to see it:** the status page, `runs/status/index.html`, served locally:
 
@@ -69,35 +69,26 @@ Loop 1 produces playgrounds for Loop 2. When a Loop 2 failure hinges on physics 
 
 All Argon unless marked Claude. "Practice starts" means the numbers are not held-out scores (see [section 3](#3-not-proven-yet)).
 
-### Reading footage: our skill vs Google's single prompt (stage A, all tracks)
+### Reading footage: our skill vs Google's published prompt (stage A)
 
-Source: `runs/argon/hindsight/report.md`.
+Sources: `runs/argon/hindsight/report.md`, `runs/argon/hindsight/results/fairness.txt`.
 
-Setup: Google's blog hindsight prompt (origami / UMI demos), verbatim, against our shared `read-footage` skill. Both run on Argon with the same output schema, on 12 recordings from 3 sources.
+**Setup.** We ran Google's published hindsight prompt (from its origami / UMI demos) verbatim, against our shared `read-footage` skill. Both run on Argon, on the same labelled recordings, 4 per source. **These are not Google's scores: Google published none,** and we don't have its videos.
 
-| Measure | Google's prompt | Our skill |
-|---|---|---|
-| Recordings where we beat or tie (action-segment F1) | | **12 of 12** |
-| Segment F1, Assembly101 | 0.41 | **0.54** |
-| Segment F1, REASSEMBLE | 0.60 | **0.94** |
-| Segment F1, LIBERO | 0.72 | **0.85** |
-| Progress curve vs sim truth (LIBERO, unseen), ρ | 0.55 | **0.97** |
-| Cost per recording minute | $0.017 | $0.025 (about 1.5×) |
+**Raw result.** Our skill beats or ties the prompt on every recording. Segment F1: Assembly101 0.41 → 0.54, REASSEMBLE 0.60 → 0.94, LIBERO 0.72 → 0.85.
 
-- Boundaries are about 0.5 s tighter. Google's prompt at the default 1 fps loses short clips. Total cost $3.51.
-- **Honest:** adding lessons improved timing (LIBERO event error 0.34 → 0.20 s), but mistake-flag precision fell, so it isn't a lasting gain yet.
-- **Origami, Google's own clip:** both arms read Google's on-screen overlay, so it doesn't count as evidence.
+**The fairness controls show that most of the gap is conventions and frame rate, not method.**
 
-**How fair is this comparison?**
+| Source | What survives the controls |
+|---|---|
+| **REASSEMBLE** | None. Without the source conventions our skill scores 0.59 vs Google's 0.60. Those conventions were measured on these same train episodes, so the +0.34 is leakage |
+| **Assembly101** | About 40%, on the same 3 recordings: Google 0.38 → our method alone 0.45 → with conventions 0.55. Mistake recall (0.95 vs 0.79) and progress ρ (0.95 vs 0.81) also hold without conventions |
+| **LIBERO, progress curve** | Frame rate explains it: Google's prompt at 4 fps reaches ρ 0.97 vs our 0.98 |
+| **LIBERO, primitive segmentation** | The gap survives at equal frame rate: 0.63 vs 0.85 |
 
-- **These are not Google's scores.** Google published no scores for its origami or UMI demos, and we don't have their videos (the origami clip has their labels burned in). We ran Google's prompt text verbatim on Argon, on *our* labelled recordings, against our skill. The claim is "our skill vs Google's published prompt, same model, same recordings", not "we beat Google's results".
-- **Known biases in our favour:**
-  - Our skill's per-source references hold lessons learned on the same Assembly101 recordings and REASSEMBLE train episodes.
-  - On LIBERO our skill read at 4 fps vs Google's default 1 fps.
-  - Our skill spends 1.5–2.5× the tokens.
-  - On REASSEMBLE, Google's prompt follows its own primitive definition, which differs from the dataset's labels.
-  - n = 4 recordings per source, with no confidence intervals.
-- **Controls:** our skill without the per-source reference, and Google's prompt at 4 fps. They show how much of the gap survives. *Running at the time of writing.*
+**The claim we can defend.** Our skill's gain comes mostly from writing the source's conventions down and reading at the right frame rate, which is what the skill's per-source references and Choose-your-path encode. The method alone adds a modest gain on human footage (Assembly101) and on LIBERO segmentation. A held-out claim needs new recordings that no lesson has seen.
+
+Other notes: Google's prompt at the default 1 fps loses short clips. Our skill costs about 1.5× per recording minute ($0.025 vs $0.017), $3.51 in total. Adding lessons improved timing (LIBERO event error 0.34 → 0.20 s) but lowered mistake-flag precision, so that isn't a lasting gain yet. On Google's own origami clip both arms read Google's burned-in overlay, so it doesn't count as evidence.
 
 ### LIBERO chain (main track): demo → reward → practice with feedback
 
@@ -136,7 +127,30 @@ Sources: `runs/argon/probes/reward/findings.md`, `runs/argon/libero_chain/findin
 - **Reward v3** on the round-1 re-score gets 8/9, and one mug placed 4.0 cm off still passes.
 - **Honest summary:** with the good reward (v1 on drawer and butter) plus reflections, round 1 went 3/9 → 5/9. Round 1 and the one-shot run used different starts, so 5/9 vs 4/9 is not a paired comparison. **The provable boost over one-shot is not shown on LIBERO today.** The next run is v3 on held-out starts, with the full ladder.
 
-**LIBERO compile (stage E):** *running at the time of writing*; no findings were written up yet (`runs/libero/compile-e/`).
+**LIBERO compile (stage E): practice turned into a cheap routine.** Source: `runs/libero/compile-e/report.md`; clips are in `runs/libero/compile-e/sim/episodes/`.
+
+- Argon compiled its 3 successful drawer practice trials into one routine, in one call costing $0.043.
+- On 3 new starts the routine opened the drawer 3/3, judged by LIBERO's check and still true 1 s later.
+
+| Per success | Practice | Routine |
+|---|---|---|
+| Brain calls | 18.3 | 1 (a look) + 0 |
+| Wall time | 758 s | 40 s |
+| Cost | $0.61 | $0.006 |
+
+That's about 19× faster and about 100× cheaper. **Caveat:** n = 3 in one scene, and the handle moves at most 2 cm. This shows the cost collapse, not robustness.
+
+**Compiled routine vs one-shot Argon, on the same drawer starts** (inits 6, 18, 38). Source: `runs/libero/compile-e/paired.jsonl`.
+
+| | One-shot Argon | Compiled routine (after practice) |
+|---|---|---|
+| Success, by LIBERO's check | 1/3 | **3/3** |
+| Calls per episode | 22 | 1 |
+| Cost per success | $1.09 | $0.0057 |
+| Wall time per episode | 301–805 s | 34–36 s |
+
+- The 2 discordant starts both favour the routine. Exact McNemar p = 0.5: n = 3 can't reach significance.
+- **Claim:** on the same starts, practice-then-routine succeeded where one-shot failed, at about 1/190 of the cost per success. It shows direction, not proof. A larger run on fresh inits was still going at the time of writing (until about 16:57).
 
 **The anchor.** The published Argon attempt-1 on LIBERO-10 is 43%. Our reproduction of the paper's protocol got 2/6, against the paper's 31/60 on the same tasks, at $5.70 vs $5.90 per episode. The published camera views are mirrored.
 
@@ -184,12 +198,12 @@ Source: `runs/argon/probes/audit/findings.md`.
 
 Copied from the sheet:
 
-- The vs-Google reading result: see its fairness caveats above. The controls decide how much of it stands.
+- The vs-Google reading gain is mostly conventions learned on the same recordings, plus frame rate. The method alone adds a modest gain on Assembly101 and on LIBERO segmentation.
 - No scored held-out boost: every attempt-1 vs attempt-N number above is on practice starts.
 - Loop 1 (the twin) isn't certified.
 - On the LIBERO anchor we're below the paper.
 - The rungs "retries without feedback" and "one-shot after practice" are designed but not run.
-- On LIBERO, one-shot Argon (2/5) beat our loop practising on the over-strict reward v2 (1/5 within 2 tries) on 5 paired starts. No boost over one-shot is shown yet.
+- On LIBERO, one-shot Argon (2/5) beat our loop practising on the over-strict reward v2 (1/5 within 2 tries) on 5 paired starts. After practice, the compiled drawer routine beat one-shot 3/3 vs 1/3 on the same starts (p = 0.5). The direction favours practice, but significance is not shown.
 
 ---
 
