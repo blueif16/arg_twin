@@ -1,0 +1,6 @@
+{
+  "venvPath": "/home/ran/arg_twin",
+  "venv": ".venv",
+  "extraPaths": ["/home/ran/arg_twin"],
+  "exclude": ["vendors", "data", "runs", ".venv"]
+}

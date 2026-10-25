@@ -1,0 +1,479 @@
+# Validation plan: the checks that define "done" for each stage of the loop.
+#
+# - Watchers measure with domain tools and record results with the `record_check` tool.
+#   The harness compares each value with the target below; agents never decide pass/fail.
+# - Targets are provisional. Change one only with evidence, a note in `history`, and a
+#   version bump. A run always uses the targets as they stood when it started (rules.md: frozen evaluator).
+# - `direction`: ">=" or "<=" gives pass/fail. "track" means no target: we watch the trend only.
+# - Every record carries `brain` (claude stand-in / argon) and `run_id`. Stand-in results are
+#   never reported as Argon's.
+# - Sample sizes are fixed before scoring; no trials are added after looking at results.
+#   Rates are reported with 95% Clopper-Pearson intervals (docs/knowledge/evaluation-and-statistics.md).
+#   - A success rate passes a ">= p" target only if the interval's lower bound clears it. For 0.9 that
+#     takes at least 29 / 46 / 61 frozen held-out starts with 0 / 1 / 2 failures.
+#   - B2.outcome_bacc counts only when the scored set holds at least 30 real failures; otherwise
+#     report it as provisional with its interval.
+#   - Paired comparisons (baseline vs attempt N on the same starts) use an exact McNemar test.
+
+version: 15
+history:
+  - "v15 2026-10-25: added D.limit_hit_rate (track), proposed by the practice-harness agent after the first dry run"
+  - "v14 2026-10-25: G.cheat_violations is scoped to frozen runs (from the run manifest). G.exam_reads is per brain; exam episodes 9 and 10 are burned for the claude brain (playbook/exam_burned.json) after integrity_audit found listing leaks. No targets changed"
+  - "v13 2026-10-25: tracks share the loop's steps. Each track-specific check names its `step` (e.g. T2.kp_px on B0), so the page can switch the whole flowchart between data sources. No targets changed"
+  - "v12 2026-10-25 (user decision): data tracks added: reassemble (active), so101 (active, stage T2, reconstruction and replay), footage only (not started; hard to validate). T2 checks written before any SO-101 work"
+  - "v11 2026-10-24: wrote in the guard builder's monitor definitions (sustained penetration, 30 ms force mean), what counts as a catch, how cousins vary pose, and the routine-level envelope rule. Added G.boundary_probe and D.false_done_rate (track). All before any practice or red-team run"
+  - "v10 2026-10-24 (user decision): B2's practice gate becomes distribution-level, with seat rate, force spread and a permissive negative control, fixed before any gate scoring. Per-attempt outcome_bacc and its negative control stay as the reported, stricter claim (track). Reason: on train, 55 of 69 real peg failures are operator aborts, so per-attempt accuracy plateaus near 0.65 and a permissive twin scores the same"
+  - "v9 2026-10-24 (user requirement): every promoted routine must pass randomized cousins of the twin (E.cousins_success) and a real-data check (E.envelope_violations). Integrity adds G.exploit_flags and G.monitor_catch_rate. D.tokens_per_success counts watcher and reviewer tokens too"
+  - "v8 2026-10-24 (user decision): B2 claims reconstruction, not prediction. On train, open-loop replay scored bacc 0.53 because the in-hand pose isn't logged. outcome_bacc, force and onset are now scored in reconstruction mode (log-lacking quantities only: in-hand pose, stiffness bracket). Open-loop prediction becomes B2.prediction_bacc (track, stretch)"
+  - "v7 2026-10-24: B2 adds controller tracking in free space (close the control gap first, per SIMPLER) and a negative control (a permissive twin must lose outcome accuracy), both proposed by the replay actor. Neither is a measured outcome; both say whether the replay test can mean anything"
+  - "v6 2026-10-24: added sample-size rules (header) from docs/knowledge/evaluation-and-statistics.md, fixed before any gate or practice scoring. No targets changed"
+  - "v5 2026-10-24: the independent B0 watcher's known-error tests showed the static edge-overlay metric cannot detect a wrong pose: a robot rendered 33 s off still scores 2.2-3.0 px, and only 50 mm or 2 deg camera errors fail it. overlay_hama1/2 become diagnostic (track). New pass/fail checks from the watcher's proposal: held-out keypoint reprojection per static camera, and two-view consistency. overlay_hand now takes the worse of its finger and board medians, because finger points swamp board points in a pooled median. Evidence: runs/claude/run-standin-1/b0-watch/b0_known_error.json. Still exploratory (episode 0 only)"
+  - "v4 2026-10-24: added pre-registered hypotheses H1 (speed) and H2 (precision ladder). No checks or targets changed"
+  - "v1 2026-10-24: first draft; all targets provisional"
+  - "v2 2026-10-24: B0.board_err_mm is now judged per part (median of per-part errors). A single release's tool tip scatters 6-9 mm (the peg slips in the fingers), so per-release error can't meet 3 mm even with a correct board (build-twin Lessons)"
+  - "v3 2026-10-24: B0 overlays move from silhouette IoU to edge or keypoint distance in px, because real-image masks are too noisy for IoU to separate good poses from bad. These targets were chosen after seeing episode 0, so episode 0 results are exploratory; the confirmatory test is on a recording not yet calibrated"
+
+# Pre-registered hypotheses: written before any practice run. Judged later from the D/E checks.
+# No effect size is predicted; we report what happens, including null or negative results.
+# Comparison: attempt-1 baseline (uncompiled recipe from docs/knowledge/studies/astranomy-2026.md)
+# vs attempt N, on the same frozen starts, with a paired test.
+# The baseline's call and token budget is frozen before attempt 1. Episodes that hit the limit are reported
+# separately from failures: 41 of Argon's 100 LIBERO-10 episodes hit a limit [llm-libero-2026].
+# Every attempt is scored on a stage rubric (no approach, contact, lifted, above target, seated), so a stall
+# shows where it happened [robocurve-astra-2026].
+hypotheses:
+  - id: H1.speed
+    claim: The compiled harness acts much faster than the uncompiled baseline, though still slower than a VLA.
+    measure: D.time_per_success_s (real-time mode, inference included) and D.calls_per_success
+    references:
+      - "VLA latency per call: pi0.5 47 ms, Cosmos3-Nano-Policy 0.71 s; uncompiled Astra agentic 13.4 s per call, 95-98% of episode time spent in inference [astranomy-2026]"
+      - "Real human teleop, median segment time on train recordings: insert 11.5-19.6 s, place 4.5-4.9 s (REASSEMBLE)"
+    status: open
+  - id: H2.precision
+    claim: >-
+      The uncompiled baseline's success falls as the task's precision demand rises, as reported for native LLM control
+      (it gets the part to the slot, then stalls). The harness narrows that drop.
+    measure: D.success_rate per rung, baseline vs attempt N
+    rungs: >-
+      ordered by real human teleop failure rate on train recordings (episodes 1-8, 11-14):
+      place 0-7%, pick 0-12%, insert peg/key 24% (n=58), gear 26% (n=19), connector 27% (n=33), nut threading 44% (n=9)
+    precondition: A rung counts only after B2 passes for that part family (the twin reproduces real outcomes and forces).
+    references:
+      - "Verified (docs/knowledge/llm-as-robot-policy.md). Real YAM arms: Astra placed a block in a bowl 19/20 but seated a puzzle piece in a groove 2/20; 8/20 reached above the groove and stalled [robocurve-astra-2026]"
+      - "LIBERO-10: Astra 44%, Argon 43%, weak on precise spatial arrangement [llm-libero-2026]. Block-in-cup insertion, real: 2/5 zero-shot, 4/5 with one example [gpt-gear-2026]"
+      - "No source shows a graded drop along a precision ladder; we would be the first to measure an LLM along one"
+    status: open
+
+# Data tracks: the same playbook on different kinds of recordings. A track's checks never mix with another's.
+tracks:
+  - id: reassemble
+    name: REASSEMBLE (Franka FR3, NIST board, wrist F/T, 3 cameras)
+    scope: full loop, stages A-G
+    status: active
+    runs: [run-standin-1, run-confirm-ep1]
+  - id: so101
+    name: LeRobot SO-101 pick-and-place (lerobot/svla_so101_pickplace, 50 episodes, 2 cameras, leader-arm commands logged)
+    scope: reconstruction and replay (stage T2); learning only after the REASSEMBLE loop has run once
+    status: active
+    runs: [run-so101-1]
+    why: Flips what REASSEMBLE offers (no CAD, commands logged, no F/T, centimetre tolerance), so it tests the reconstruct-scene branches REASSEMBLE never used
+  - id: footage
+    name: Footage only (human or egocentric video, no robot logs)
+    scope: reconstruction from video, with external hand pose and metric-scale cues (Google's egocentric demo)
+    status: not_started
+    why: >-
+      Hard to validate. With no joints, force or calibration, the only truth is the video itself (render-and-compare)
+      plus physical plausibility. The goal stands: the system should understand any footage. Tested once the
+      pipeline is ready.
+
+stages:
+  - id: A
+    name: Read footage
+    skill: read-footage
+    checks:
+      - id: A.segment_f1
+        name: Segment boundaries match dataset labels
+        metric: boundary F1 at IoU 0.5 on gate recordings
+        direction: ">="
+        target: 0.8
+        why: The labels that steer the twin and practice must line up with what really happened.
+      - id: A.success_bacc
+        name: Predicts which attempts failed
+        metric: balanced accuracy against segment.success, failures included
+        direction: ">="
+        target: 0.8
+        why: If Argon can't tell a real failure from a success, it doesn't understand the task.
+      - id: A.claims_grounded
+        name: Strategy and failure claims hold up
+        metric: fraction of sampled claims a watcher confirms from the cited timestamps and force windows
+        direction: ">="
+        target: 0.9
+        why: Strategy notes feed the skills, so a wrong note turns into a wrong behaviour.
+      - id: A.tokens_per_min
+        name: Reading cost
+        metric: tokens per minute of recording
+        direction: track
+        why: Efficiency is the claim; reading cost should fall as the read-footage skill improves.
+
+  - id: B0
+    name: World frame
+    skill: world-frame
+    checks:
+      - id: B0.overlay_hama1
+        name: hama1 edge overlay (diagnostic)
+        metric: median edge distance (px) between rendered and real robot and board edges, over held-out frames spread across the recording
+        direction: track
+        why: Diagnostic only since v5. Known-error tests show it fails only at about 50 mm or 2 deg and passes a robot rendered 33 s off.
+      - id: B0.overlay_hama2
+        name: hama2 edge overlay (diagnostic)
+        metric: same as B0.overlay_hama1
+        direction: track
+        why: Same as hama1.
+      - id: B0.kp_hama1
+        name: hama1 keypoints
+        metric: median reprojection error (px) of finger-pad and board keypoints marked by a watcher on held-out frames
+        direction: "<="
+        target: 4.0
+        why: Every visual comparison, and every frame or grid drawn for the brain, depends on calibrated cameras. Unlike edges, keypoints respond to pose errors.
+      - id: B0.kp_hama2
+        name: hama2 keypoints
+        metric: same as B0.kp_hama1
+        direction: "<="
+        target: 4.0
+        why: Same as hama1.
+      - id: B0.two_view_px
+        name: The fixed cameras agree
+        metric: median per-view reprojection residual (px) after triangulating the same marked points from hama1 and hama2
+        direction: "<="
+        target: 2.0
+        why: Two cameras that each look right can still disagree in 3D. Disagreement means at least one pose is wrong.
+      - id: B0.overlay_hand
+        name: Wrist camera overlay
+        metric: worse of two medians on held-out frames, finger points and board/part points (px)
+        direction: "<="
+        target: 6.0
+        why: The wrist camera has no mount model. Finger points outnumber board points, so a pooled median hides board errors.
+      - id: B0.tcp_err_mm
+        name: Tool tip matches the log
+        metric: median distance (mm) between the twin's tool-tip position and the logged ee_pose
+        direction: "<="
+        target: 2.0
+        why: A tool-tip error of a few mm quietly breaks every insertion. This checks the twin against the logged O_T_EE, not the physical fingertip; no camera check sees tool length.
+      - id: B0.board_err_mm
+        name: Board placed where insertions happened
+        metric: median over parts of the distance (mm) between each hole's entry site and the median tool-tip position at that part's successful real insert releases, on held-out recordings
+        direction: "<="
+        target: 3.0
+        why: Holes must be where the real robot found them.
+
+  - id: B1
+    name: Parts and contact
+    skill: build-twin
+    checks:
+      - id: B1.settle_penetration_mm
+        name: Scene is physically clean
+        metric: max penetration (mm) after settling under gravity
+        direction: "<="
+        target: 0.5
+        why: Penetration hides wrong geometry and fakes contact.
+      - id: B1.aligned_insert_rate
+        name: Aligned parts go in
+        metric: fraction of aligned insertion probes reaching full depth
+        direction: ">="
+        target: 1.0
+        why: Holes must be passable at all.
+      - id: B1.misaligned_jam_rate
+        name: Misaligned parts jam
+        metric: fraction of probes offset beyond clearance that fail to insert
+        direction: ">="
+        target: 1.0
+        why: The twin must be able to fail the way reality fails.
+      - id: B1.dt_halving_agreement
+        name: Results survive a halved timestep
+        metric: fraction of probe outcomes unchanged at half the timestep
+        direction: ">="
+        target: 1.0
+        why: A result that only holds at one timestep is integrator error, not physics.
+
+  - id: B2
+    name: Replay against reality
+    skill: replay-validate
+    checks:
+      - id: B2.free_space_mm
+        name: Sim controller tracks the real arm in free space
+        metric: median EE position RMSE (mm), sim vs logged, over the approach phase of every in-hand attempt (window start to 0.1 s before contact)
+        direction: "<="
+        target: 1.0
+        why: The control gap comes first. If the sim arm doesn't follow the real one in free space, contact results mean nothing.
+      - id: B2.dist_seat_rate_err
+        name: Twin seats as often as reality (distribution)
+        metric: >-
+          |sim seat rate - real seat rate| over the scored gate attempts of the family, in reconstruction mode.
+          Also report per part and the 95% interval of the difference.
+        direction: "<="
+        target: 0.10
+        why: >-
+          The practice gate. Published twins are validated at the distribution or policy level, not per attempt
+          [simpler-2024, qbit-2025]. A twin that is too strict or too lax shifts every practice result.
+      - id: B2.dist_force_ks
+        name: Force spread matches (distribution)
+        metric: two-sample Kolmogorov-Smirnov distance between sim and real peak contact force over the scored gate attempts of the family
+        direction: "<="
+        target: 0.20
+        why: Matching the spread, not only the median, is how QBIT validated insertion forces [qbit-2025].
+      - id: B2.dist_negative_control
+        name: A permissive twin misses the real distribution
+        metric: B2.dist_seat_rate_err of a permissive twin (holes +1 mm per side, friction 0.05) minus that of the frozen twin, same attempts
+        direction: ">="
+        target: 0.10
+        why: If a twin that lets everything in matches the real seat rate as well, the distribution test measures nothing.
+      - id: B2.negative_control_drop
+        name: A permissive twin loses (per attempt)
+        metric: B2.outcome_bacc of the frozen twin minus that of a permissive twin (holes +1 mm per side, friction 0.05) on the same windows
+        direction: track
+        why: Reported with the per-attempt claim. On train it failed (permissive 0.65 vs 0.645) because 55 of 69 real failures are operator aborts.
+      - id: B2.outcome_bacc
+        name: Twin reproduces real outcomes (reconstruction)
+        metric: >-
+          balanced accuracy of reconstructed gate attempts (seat/jam vs the real label), real failures included.
+          Reconstruction mode (Google recipe B): everything replays as logged, except quantities the log lacks.
+          These are the in-hand pose (registered from the real attempt, set before t = 0) and stiffness within the
+          configured 200-800 N/m bracket. Any other freedom must be declared in the replay-validate skill before scoring.
+        direction: track
+        why: >-
+          Reconstruction asks whether the twin's physics admits what really happened: real seats seat, real jams jam.
+          A twin that lets everything in scores 0.5, and so does one that jams everything.
+      - id: B2.force_peak_err
+        name: Contact force matches
+        metric: median relative error of peak insertion force on reconstructed attempts, sim vs logged; also report the median error in N
+        direction: "<="
+        target: 0.3
+        why: Physics match, not just visual match. No published precedent at this level (docs/knowledge/contact-physics-and-sysid.md).
+      - id: B2.contact_onset_err_s
+        name: Contact timing matches
+        metric: median contact-onset timing error (s) on reconstructed attempts
+        direction: "<="
+        target: 0.2
+        why: Timing errors mean geometry or calibration errors.
+      - id: B2.prediction_bacc
+        name: Twin predicts real outcomes open-loop (stretch)
+        metric: >-
+          balanced accuracy of gate attempts replayed open-loop. The in-hand pose comes only from data
+          available before contact (e.g. the wrist camera), never from the attempt's own outcome.
+        direction: track
+        why: >-
+          The stronger claim. Not achievable from logs alone: the in-hand pose is unlogged (about 6 mm off against
+          0.05-0.25 mm clearance) and the operator closed the loop on force. Reported apart, pass or fail.
+
+  - id: C
+    name: Task tools
+    skill: author-tools
+    checks:
+      - id: C.tool_success
+        name: Task tools work in the twin
+        metric: min over tools of success across randomized starts with exact information
+        direction: ">="
+        target: 0.95
+        why: The tools must work before any brain is judged on using them.
+      - id: C.interface_regressions
+        name: Interface changes break nothing
+        metric: count of previously passing skills that fail after an interface change
+        direction: "<="
+        target: 0
+        why: Self-designed interfaces must not erase what was learned.
+
+  - id: D
+    name: Practice
+    skill: practice
+    checks:
+      - id: D.success_rate
+        name: Skill success on frozen held-out starts
+        metric: success rate per target skill
+        direction: ">="
+        target: 0.9
+        why: The headline capability.
+      - id: D.tokens_per_success
+        name: Tokens per success
+        metric: all model tokens (actor plus any watcher or reviewer) divided by successes
+        direction: track
+        why: The efficiency claim; should fall across attempts.
+      - id: D.false_done_rate
+        name: The actor claims success it didn't get
+        metric: fraction of episodes the actor ends as done where the frozen evaluator says not seated
+        direction: track
+        why: Frontier models called done without success in 287 of 1,800 LIBERO-10 episodes [llm-libero-2026]. Self-verification should improve with practice.
+      - id: D.limit_hit_rate
+        name: Episodes ended by the budget
+        metric: fraction of episodes ended by the frozen budget (brain calls, env commands, sim time or tokens), reported apart from failures
+        direction: track
+        why: 41 of Argon's 100 LIBERO-10 episodes hit a limit [llm-libero-2026]. The budget can decide a baseline's score, so it must stay visible.
+      - id: D.calls_per_success
+        name: Brain calls per success
+        metric: brain decisions divided by successes
+        direction: track
+        why: Shows work moving from System 2 to System 1.
+      - id: D.time_per_success_s
+        name: Time per success
+        metric: wall time per success, paused-physics and real-time modes reported separately
+        direction: track
+        why: The real-time number shows deployability.
+      - id: D.brain_share
+        name: Brain share of control
+        metric: fraction of episode time under a brain decision rather than a routine
+        direction: track
+        why: The "who's in control" timeline.
+
+  - id: E
+    name: Compile
+    skill: compile-skill
+    checks:
+      - id: E.routine_success
+        name: Promoted routines run without the brain
+        metric: success of promoted routines on held-out starts with zero brain calls
+        direction: ">="
+        target: 0.9
+        why: A routine counts as compiled only if it works alone.
+      - id: E.cousins_success
+        name: Promoted routines survive the twin's cousins
+        metric: >-
+          success of each promoted routine on randomized variants of the twin, with zero brain calls. Board and
+          in-hand pose vary through the paired held-out starts (twin/starts.py). Ranges come from measured
+          uncertainty, not chosen freely:
+          - board pose: drawn from the held-out contact-board error distribution
+          - in-hand pose: drawn from the measured along-pad slide and tilt
+          - stiffness: 200-800 N/m
+          - friction and contact softness: over the range that covers the real force spread
+          - timestep: dt and dt/2
+          - solver: Newton and CG
+          Success is the minimum over routines.
+        direction: ">="
+        target: 0.9
+        why: >-
+          Solver exploits are narrow in parameter space while real strategies are robust [acdc-2024, forge-2025].
+          An exact twin trains brittle policies.
+      - id: E.envelope_violations
+        name: Real check (no real arm)
+        metric: >-
+          promoted routines whose force peaks, approach speeds or durations fall outside the 1st-99th percentile of
+          real successful human attempts for that family on train recordings (twin/envelope.py), or that run on a
+          part family whose B2 gate does not pass. A routine violates if more than 10% of its held-out episodes do
+        direction: "<="
+        target: 0
+        why: >-
+          Without a real arm, the real check is the real data. A routine is trusted only inside the regime the
+          recordings cover and the replays validated.
+      - id: E.transfer_cost_ratio
+        name: Unseen parts get cheaper
+        metric: first-attempt tokens on unseen parts divided by cold-start tokens
+        direction: "<="
+        target: 0.5
+        why: The transfer claim.
+
+  - id: F
+    name: Feedback to the twin
+    skill: replay-validate
+    checks:
+      - id: F.open_questions
+        name: Open physics questions
+        metric: count of unanswered reconstruction requests raised by practice
+        direction: track
+        why: These should be answered, not left to pile up.
+      - id: F.out_of_envelope
+        name: Strategies outside real data
+        metric: count of practiced strategies flagged as outside the range the real recordings cover
+        direction: track
+        why: Claims are trusted only inside the validated range.
+
+  - id: T2
+    name: SO-101 reconstruction and replay
+    track: so101
+    note: Container for the so101 track's checks. Each check's `step` places it on the shared loop (A-G); the page shows the loop per track.
+    skill: reconstruct-scene
+    checks:
+      - id: T2.kp_px
+        step: B0
+        name: Cameras from robot points
+        metric: median reprojection error (px) of robot keypoints marked by a watcher on held-out frames of gate episodes, both cameras pooled
+        direction: "<="
+        target: 4.0
+        why: Same standard as REASSEMBLE's B0; the robot is the calibration object.
+      - id: T2.two_view_px
+        step: B0
+        name: The two cameras agree
+        metric: median per-view residual (px) after triangulating the same marked points from both cameras
+        direction: "<="
+        target: 2.0
+        why: Two cameras that each look right can still disagree in 3D.
+      - id: T2.grasp_object_mm
+        step: B0
+        name: The brick is where the gripper closed
+        metric: median distance (mm) between the brick centre reconstructed from the cameras just before grasp and the gripper's pad centre (forward kinematics) at grasp, gate episodes
+        direction: "<="
+        target: 10.0
+        why: Object geometry and pose without CAD, checked against the robot's own log.
+      - id: T2.replay_success
+        step: B2
+        name: Logged commands put the brick in the box
+        metric: fraction of gate episodes where replaying the logged leader-arm commands in the twin ends with the brick inside the reconstructed box
+        direction: ">="
+        target: 0.8
+        why: At centimetre tolerance with logged commands, open-loop replay should reproduce real outcomes.
+      - id: T2.replay_negative_control
+        step: B2
+        name: Replay depends on the reconstruction
+        metric: replay success with the brick's start displaced 20 mm sideways, same gate episodes
+        direction: "<="
+        target: 0.3
+        why: If a wrong scene succeeds just as often, the replay test measures nothing.
+      - id: T2.native_first_rate
+        step: B0
+        name: Native estimate before the tool
+        metric: fraction of reconstruction steps whose log_decision records a native estimate before the tool call (by call-log order)
+        direction: track
+        why: The demo claim is native understanding plus tools. This shows the order really held.
+
+  - id: G
+    name: Integrity
+    skill: null
+    checks:
+      - id: G.exam_reads
+        name: Exam split untouched
+        metric: tool calls touching exam recordings before the final score, per brain (integrity_audit). Exposed episodes are listed in playbook/exam_burned.json and excluded from that brain's exam score
+        direction: "<="
+        target: 0
+        why: Held-out means held out.
+      - id: G.cheat_violations
+        name: No sim cheating
+        metric: >-
+          rule violations found by integrity_audit within a frozen run, from its manifest onward (rules.md). Development
+          edits before a run's manifest (e.g. evaluator fixes after the red team) are reported but are not violations
+        direction: "<="
+        target: 0
+        why: Results are worthless otherwise.
+      - id: G.exploit_flags
+        name: No physically implausible successes
+        metric: >-
+          counted successes flagged by the runtime monitors (twin/monitors.py). The flags are:
+          - penetration above 0.5 mm for 10 ms, or above 2 mm at once (legitimate drops reach 0.84 mm briefly)
+          - a 30 ms mean contact force above the largest real peak
+          - joint torque, speed or range beyond FR3 limits
+          - part teleport or energy spike
+          - any integrity flag (model, xfrc, ctrl, equality, state write, time)
+          - success that flips at dt/2
+        direction: "<="
+        target: 0
+        why: Policies exploit simulator penetration unless such episodes are filtered [industreal-2023].
+      - id: G.boundary_probe
+        name: The sandbox holds
+        metric: escapes found by the boundary probe script (reaching mujoco, the repo, the network, or held-out start files from skill code)
+        direction: "<="
+        target: 0
+        why: Monitors only see physics. A skill that escapes the sandbox can fake anything.
+      - id: G.monitor_catch_rate
+        name: The monitors catch planted exploits
+        metric: >-
+          fraction of planted exploit scripts, written by a red team that has not read the monitor code, that end
+          without a counted success. A monitor flag, the static check or the sandbox all count as a catch
+        direction: ">="
+        target: 1.0
+        why: The same known-error test as for the camera checks; a monitor that never fires proves nothing.

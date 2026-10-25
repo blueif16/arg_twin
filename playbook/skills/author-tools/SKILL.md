@@ -1,0 +1,142 @@
+---
+name: author-tools
+description: Stage C. Design, test and version task-level tools (approach, guarded touch, search, insert, release) on top of the practice env's actor ops, from the twin's sites and frames, acting only on believed geometry, with written feedback conventions; test them with a deterministic self-test on practice starts (exact and believed information). Use it before practice (D) whenever a brain needs actions above raw end-effector poses, or when a tool's interface changes.
+stage: tools
+steps: [C]
+---
+## Goal
+
+A versioned set of task tools (interface `task/v1`) that a brain calls instead of raw poses. Each tool runs a whole closed-loop motion and hands control back with structured feedback, so the brain decides between calls; this beats a pre-written program, 56% vs 24% [urai-2026].
+
+Done when:
+- each tool passes its own test in the twin with exact information on randomized practice starts (`C.tool_success` ≥ 0.95, the minimum over tools);
+- the same test is reported with believed information;
+- nothing that passed before fails after an interface change (`C.interface_regressions` = 0);
+- the tool list and versions are in `runs/<brain>/<run_id>/task_tools/manifest.json`.
+
+## Inputs
+
+- The env and its actor ops (`twin/env.py`; skill `sim-integrity`): `task`, `observe`, `move {pos, quat, speed ≤ 0.25 m/s, force_max ≤ 15 N, stop_force, timeout}`, `gripper`, `wait`, `status`, `finish`.
+- The task's frames: the hole entry pose (+z into the hole, +y along the long side), the part geometry and clearance, the nominal grasp (`tip_in_tcp_frame_m`), and the yaw symmetry. The MuJoCo sites behind them are `<slug>_hole/entry`, `<slug>/tip` and `tcp`; the twin's evaluator reads them, the tools never do.
+- Frozen practice starts (`twin/starts.py`). Each start pairs truth and belief: the believed board is the nominal contact-fit board (`starts/practice.json` `nominal_board`), and the truth is that board plus the start's `board_err`. The true in-hand pose is `inhand`.
+- The real envelope (`runs/<brain>/<run_id>/envelope/envelope.json`) for force ceilings and speeds; operator strategy statistics (`runs/claude/run-standin-1/task_tools/research/operator_strategies.json`); `docs/knowledge/insertion-strategies.md`.
+
+## Tools
+
+| Tool | Use |
+|---|---|
+| `task_state` | Belief, contact memory, estimated stage. No motion. |
+| `task_approach` | approach_hole + align: square the believed part axis to the hole axis (yaw by symmetry, nearest the current yaw), hover the believed tip `standoff_mm` above the believed hole, converge, then trim the steady-state lateral error. |
+| `task_move_until_contact` | Guarded move along `down`/`up`/`±x`/`±y` or a hole-frame vector. After a downward stop it re-touches slowly on the commanded line and probes with a steady press. Returns the contact class, the touch point from the wrench, and the stiffness estimate. |
+| `task_search` | Spiral or raster under a light press until the tip drops. |
+| `task_insert` | Composite. Strategies `auto`, `press`, `spiral`, `wiggle`, `tilt`. Push to the seat with torque alignment and wiggle on a stall; optional release. |
+| `task_release` | Open, retreat, check for a pull. |
+| `task_tool_selftest` | The deterministic test runner (watchers rerun it). It records no checks. |
+
+Code:
+- `twin/task_tools.py`: the routines. They use numpy only and act through an actor-op object.
+- `harness/tools/task.py`: the registered tools. They talk to the session daemon's socket and keep a per-episode memory in `runs/<brain>/<run_id>/task_tools/sessions/<session>.json`.
+- `twin/task_selftest.py`: the test runner.
+
+## Approach
+
+**1. Design from the frames, not the simulator.** Write every target in the hole frame and convert with the belief:
+- tip_world = TCP + R_hand · tip_tcp;
+- R_hand = R_part · R_inᵀ (put the believed part axis on the hole axis).
+Choose the yaw from the hole's symmetry nearest the current hand yaw. Joint 7 has ±3.05 rad, and squaring the hand once drove it to its limit (sim-integrity Lessons).
+
+**2. Information honesty: the hard part of the task is not knowing where things are.** A tool may use only:
+- `task()`: the nominal board, the nominal grasp, and limits;
+- what the robot observes: TCP pose, F/T, gripper width, time;
+- what contact taught it this episode: the surface touch height, the touch point, the drop;
+- the brain's own `corrections`: `hole_shift_mm`, and `grip {dx_mm, dy_mm, grasp_from_top_mm, pivot_deg, rock_deg}`.
+
+Never the start's offsets, the evaluator or MjData. The env already separates truth and belief: `task()` is the believed board, and the true board is that plus `board_err` (|e| median 1.28 mm, p90 4.0 mm; z σ 1.6 mm). So a perception accessor is not needed. A brain that perceives better (camera, overlays from `practice_view`) passes corrections.
+
+"Exact information" (C.tool_success) is the same corrections filled with the truth by the self-test, from the start file (hole) and from the scene (in-hand pose, re-read before every call). It exists only in `task_tool_selftest`. Label it: exact numbers say the tools work; believed numbers say what a brain gets.
+
+The stage a tool reports is `stage_est`, estimated from observations. The evaluator's rubric uses the TRUE hole, so returning it mid-episode would leak where the hole is. It comes only from `env_finish`, on practice starts.
+
+**3. Feedback conventions (Show-Harness: the written conventions carry the grounding [show-harness-2026]).** Every tool returns the same shape:
+- `ok` and `code`, from a closed list: OK, NO_CONTACT, UNEXPECTED_CONTACT, NOT_FOUND, JAMMED, SHALLOW, NO_SURFACE_REF, NOT_HOLDING, FORCE_LIMIT, EPISODE_OVER, ENV_ERROR, BAD_ARGS;
+- `summary`: text with numbers;
+- `tried`: the phases, their commands and why each stopped;
+- `contact {state, force_N, force_hole_N, torque_Nm, touch_point_hole_mm}`;
+- `depth {below_touch_mm, below_believed_surface_mm, seat_depth_mm}`;
+- `stage_est`, `tip_hole_mm`, `commands`, `commands_since_drop`, `sim_s` and `memory`.
+
+Units are mm, N, deg and m/s, in the hole frame. Each tool's description says what it does, its units and its failure codes. Declarations must pass `gemini_schema` (`harness.cli list`; `harness.brains.test_offline`).
+
+**4. Limits in code.**
+- The env caps speed (0.25 m/s) and force (15 N).
+- The tools cap force again at the family's 99th-percentile real peak (13.8 N round, 12.6 N square) [forge-plus-2026].
+- Defaults sit inside the real envelope where the twin allows it (Lessons).
+- Mind the env's progress monitors. `progress.stuck` stalls an episode after 40 commands or 60 sim s with no true depth or stage progress, so a blind search gets about 32 moves. `progress.repeat` stalls it after 6 near-identical moves, so never re-send the same target.
+
+**4b. Keep the call log complete.** A tool that drives the env must leave the same trail a brain would. Every env command goes to `runs/calls/` as an `env_*` line with the caller, session and a `parent` pointer to the tool call (`harness/tools/task.py` `SocketAPI`). Check it: `twin.practice_view.episode_log(session)` must rebuild exactly the env record's command list.
+
+**5. Test.**
+- Run `task_tool_selftest` on fixed practice starts, never held-out or red-team, in both modes and both chains (`tools`: every tool in sequence; `insert`: the composite).
+- Score every tool on its own postcondition, read by the runner from the evaluator state between calls (the tools never see it). The `raw` chain is the baseline: one raw-pose descent.
+- Then run `.venv/bin/python -m tests.test_sim_integrity --quick` for interface regressions.
+- Log notes with `record_event(kind="note", stage="C", brain=...)`. The actor never records checks.
+
+**6. Version.** Tool names, arguments and returned fields are an interface (rules.md). A change bumps `task/vN` in `twin/task_tools.py` `INTERFACE`, the harness module and the manifest, and is followed by a rerun of the self-test and the sim-integrity tests.
+
+## Checks
+
+| id | How | Pass |
+|---|---|---|
+| C.tool_success | `task_tool_selftest {info_modes: [exact]}` → `summary.C_tool_success_exact_min` (minimum over tools of the per-tool rate). Report the believed mode next to it | ≥ 0.95 |
+| C.interface_regressions | `tests.test_sim_integrity --quick` and `harness.brains.test_offline` pass; previously passing skills still pass | 0 |
+| honesty | `grep -n "mujoco\|ev\.state\|\.ep\[\|starts\.load" twin/task_tools.py harness/tools/task.py` finds nothing. The tool code imports only `twin.task_tools`, `twin.envelope.family_of`, and `twin.task_selftest` for the self-test tool; the self-test's oracle lives in `twin/task_selftest.py` only | no hits |
+| manifest | `runs/<brain>/<run_id>/task_tools/manifest.json` lists every tool with its interface version | present |
+| call log | for a daemon episode driven by task tools, `twin.practice_view.episode_log(session)` commands equal the env record's `commands[].req` | equal |
+
+## Lessons
+
+**2026-10-25, claude-opus-5.5 stand-in (caller `claude-author-tools`; prototypes in the session scratchpad; self-tests in `runs/claude/run-standin-1/task_tools/selftest/`).**
+
+- **The arm lags sideways while it moves, and a guarded stop freezes the lag.**
+  - Descending at 25 mm/s with exact information, the TCP drifted 2.3 mm sideways (hole −y) over 11.6 mm and landed the 8 mm peg on the rim; in free space at rest the error is 0.4 mm.
+  - Pressing back sideways does not undo it: the lateral spring force (K × 0.9 mm ≈ 0.45 N) is below friction (0.3 × 3 N).
+  - The fix: touch fast (13 mm/s), lift 1.5 mm back onto the commanded line, converge, and touch again at 3 mm/s (about 0.3 mm of lag). With it, exact-information inserts went from 5/7 to … (self-test below).
+- **Large re-orientations creep.** The env caps the rotational spring at force_max × 0.05 m, so the hand turns at about 2°/s (26° takes about 13 s). The approach waits for convergence (lateral ≤ 0.3 mm, ≤ 0.7°) and then trims the steady lateral error (about 0.25 mm) by re-aiming at goal − error, which ends within 0.05 mm.
+- **Thin pegs move in the pads.** For round peg 1, the in-hand pose after the 0.25 s grasp pre-roll differs from the start file's registered pose by +2.5–3° pivot and 1.3–1.5 mm at the tip, and it keeps changing as the hand turns (+1.2° after the approach). Exact information therefore has to be re-read before each call; a t = 0 oracle left the tip 0.4–0.6 mm off against a 0.45 mm capture.
+- **The touch point is only as good as the contact.** A flat tip face can touch anywhere on its face. On round peg 2, moving the touch point onto the hole axis put the tip 3.9 mm off instead of 2.5 mm, and the search missed. Learning the tip shift from the touch is now opt-in (`learn_tip`).
+- **Press semantics.** `force_max` is a ceiling on |K · error|, not a press. A target 3 mm below presses only K × 3 mm ≈ 1.5 N. The probe measures K (`k_est_N_m`), and presses are commanded as force / K.
+- **Searches drag.** Sliding under a press lags the target by about μ × press depth (1.2 mm at 4 mm depth), so a light press (0.8 N, 1.6 mm) is needed for small spirals. A thin peg pivoting in the grip can fake a "drop" of about 1 mm (round peg 1 believed: tilt 18.6° at the "drop", then a jam at 53°).
+- **Impacts.** At 25 mm/s the stop tick read 41 N, but the monitor's 30 ms mean peaked at 4.6 N: no flag.
+- **Monitors shape tools.** Six identical move targets in a row ended a debug episode as `stalled` (`progress.repeat`). The 40-command no-progress limit caps a blind search at about 32 chords, roughly a 4 mm radius at a 0.8 mm pitch. Real errors beyond that (board p90 6.2 mm in 2D, plus the in-hand offset) need better perception, not a longer search; spiral over 7–15 mm took about 100 s in [pomdp-search-2024].
+- **Raw-pose baseline** (smoke run, one start per part): a single raw-pose descent to the believed seat succeeded 0/8 with believed information (all dropped or jammed) and 4/8 with exact information.
+- **The call log must stay complete** (finding from the practice dry run, `runs/claude/run-standin-practice-1/`). The first version sent its env commands straight to the daemon socket, so `runs/calls/` held only the task tool's own line, and neither the replay recorder nor `integrity_audit` could see the moves. Now `SocketAPI` appends every move, gripper, wait, observe and status as its own `env_*` line: the same shape and caller as a registry call, plus `parent: {tool, call_id}`. The tool's result names that `call_id` and the number of lines logged. On P-round_peg_3-001 (believed, session `s20261025-020128-25296`), `practice_view.episode_log` rebuilt 24/24 commands, identical to the env's episode record, and the outcome was a counted success.
+- **Stall budget, not bigger limits.** A preview of `task_insert` on round peg 1-000 used 50 commands and the env ended it as `stalled`.
+  - Search and push now track progress conservatively: the TCP must go 0.5 mm deeper than ever before, and after a touch it must also be more than 2 mm below the touch height. A press can tilt a thin peg in the pads and lower the TCP while the tip stays on the surface.
+  - Both stop 4 commands short of the env's 40 and return NOT_FOUND or JAMMED with the commands left. On round peg 2-002 (believed), the search returned after 33 moves with 5 commands to spare instead of stalling.
+  - The settle loop waits in 2 s steps (fewer commands).
+- **Thin pegs turn in the fingers.** On round peg 1 (4 mm, starts with 5.5–7.1° of pivot, believed information), searching and pushing turned the part 45–64° in the pads. The TCP went 17 mm "deep" while the tip stayed on the surface.
+  - The push now starts at 6 N, the real median peak; only later rounds go to the ceiling.
+  - GRIP_SLIP is reported when the hand goes more than 1.5 mm past the seat depth.
+  - Neither fixes the believed round peg 1 cases: the in-hand tilt is unknown and the pads let the part turn. That needs a perceived grip correction (`corrections.grip.pivot_deg`, e.g. from the wrist view) or a regrasp.
+  - The search's tilt strategy (`strategy: tilt`) exists but is untested.
+- **The env's guarded stop overshoots** (1.5 N requested → 5.6–10.9 N measured by the practice dry run). The env builder fixed it in env code (twin/env.py, 2026-10-25 02:25): every move with a `stop_force` is now capped at 1.5–3 mm/s (`GUARD_SPEED_TABLE`), with a peak tolerance of max(0.5, 0.2 × stop_force).
+  - The tools do not compensate. They report the force at the stop and the env's measured overshoot (`tried[].force_at_stop_N`, `env_stop_overshoot_N`).
+  - They adapted to the new interface. Free-space legs (approach, the lead-in to the contact band, re-aims, the retreat) are unguarded moves with an 8–15 N spring ceiling, checked after the move (|F − F_ref| ≥ 3 N counts as unexpected contact). Only the band where contact is possible is guarded.
+  - Guarded moves carry no tool-side timeout. Before this change, the approach legs guarded at 3 N crawled at 2 mm/s, and the timed band timed out at 3 mm depth in the hole (an aborted self-test run, `selftest/20261025-021137-aborted-envchange`).
+  - Lesson: a tool built on another agent's env must re-run its self-test whenever `twin/env.py` changes. The manifest records the env hash the tools were tested with.
+
+## Sources
+
+Ids are in `docs/knowledge/references.md`.
+- [urai-2026] decide between tool calls: 56% vs 24% for a pre-written program; tools 53% vs 18%.
+- [show-harness-2026] written conventions carry the grounding.
+- [forge-plus-2026] force ceilings in the fast loop, recovery chosen by the model.
+- [google-argon-robotics-2026] zero-shot primitives `move_until_contact`/`place_until_contact` with `max_lag` 12 mm and `relief` 2 mm.
+- [lian-2021] spiral search on the NIST board: round pegs caught almost surely, rectangles jam; 10.7 s cycles.
+- [watson-2020] spiral r_max 4 mm at 2 mm/s; failures from part tilt in the fingers.
+- [pomdp-search-2024] tilt-probe search 596/600 in 10 s vs spiral 509/600 in 103 s.
+- [inoue-2017] fixed search patterns rated ≤ 1 mm, ≤ 1°.
+- [rax-2026] corner-first tilt for 0.1 mm holes.
+- [robocurve-astra-2026] raw-pose LLM control stalls at the slot (2/20).
+- [llm-libero-2026] Argon 43% on LIBERO-10.
+- Knowledge topic: `docs/knowledge/insertion-strategies.md`.

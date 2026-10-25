@@ -1,0 +1,6 @@
+# Pins for the shared .venv. Pass to every install so nothing silently swaps torch/mujoco:
+#   uv pip install --python .venv/bin/python -c constraints.txt <pkg>
+# torch must come from the CUDA 13.0 index (see docs/research/env-setup-notes.md).
+torch==2.11.0+cu130
+torchvision==0.26.0+cu130
+mujoco==3.17.0
