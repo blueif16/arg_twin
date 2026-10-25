@@ -83,7 +83,11 @@ TIP_SHIFT_MAX_MM = 12.0        # and larger ones clipped (in-hand offset p90 5.4
 # centre of pressure can wander without the hand sinking).
 PIVOT_SHIFT_MM = 0.5           # contact moved at least this far in the hand frame between the two presses
 PIVOT_SINK_MM = 0.15           # and the hand sank at least this much: the part is turning in the fingers
-GRIP_CLOSE_MM = 1.0            # the fingers closed this much further than at the approach: the part is slipping out
+GRIP_CLOSE_MM = 1.0            # the fingers closed max(this, GRIP_CLOSE_FRAC x their width at the approach) further:
+GRIP_CLOSE_FRAC = 0.2          # the part is slipping out (round peg 1 slipping out: 3.2 -> 1.0 mm; a 12 mm peg held
+                               # 2 mm from its top settled 1.0 mm narrower and stayed upright: not a slip)
+J7_LIMIT = 3.0508              # rad, FR3 joint 7 (menagerie fr3.xml; the env flags leaving it as invalidating)
+J7_MARGIN = 0.25               # rad kept free when choosing a square part's yaw
 STAGES_EST = ("no_approach", "lifted", "above_target_believed", "contact", "engaged", "seated_est", "released")
 CODES = {
     "OK": "the tool reached its postcondition",
@@ -96,7 +100,7 @@ CODES = {
     "NOT_HOLDING": "the gripper is open or empty",
     "FORCE_LIMIT": "a force above the tool's ceiling, or a pull during a retreat",
     "GRIP_SLIP": "the part is turning or sliding in the fingers: a probe press moved its contact in the hand and let "
-                 "the hand sink (grip check), the fingers closed > 1 mm further than at the approach, or the hand "
+                 "the hand sink (grip check), the fingers closed > max(1 mm, 20% of their width) further than at the approach, or the hand "
                  "travelled past the seat; thin pegs do this under a few newtons",
     "EPISODE_OVER": "the env ended the episode (budget, stall or finish): reset to a start",
     "ENV_ERROR": "the env refused a command; the message says why",
@@ -221,9 +225,11 @@ def _B(belief: dict):
             np.asarray(g["R_in"], float))
 
 
-def hand_rotation(belief: dict, q_now) -> np.ndarray:
+def hand_rotation(belief: dict, q_now, q7=None) -> np.ndarray:
     """Hand rotation that puts the believed part axis along the hole axis, with the hole yaw allowed by the part's
-    symmetry nearest the current hand yaw (joint 7 has +-3.05 rad: never spin the hand further than needed)."""
+    symmetry nearest the current hand yaw. Joint 7 turns the hand about its own z, so a yaw change of d rad moves it by
+    d: with q7 (the observed joint 7 angle) the yaw is the nearest one that keeps joint 7 J7_MARGIN inside its +-3.05
+    rad (two square-peg approaches drove it to 3.052 rad, an invalidating flag)."""
     _, Re, _, Rin = _B(belief)
     zin = Re[:, 2]
     Rnow = quat_to_mat(q_now) @ Rin                  # current part frame in the world
@@ -233,14 +239,26 @@ def hand_rotation(belief: dict, q_now) -> np.ndarray:
     xc = xc / np.linalg.norm(xc)
     sym = belief["hole"]["yaw_symmetry_deg"]
     if sym == 0:
-        x = xc
+        cands = [xc]
     else:
         cands = [Re[:, 0] * math.cos(math.radians(a)) + Re[:, 1] * math.sin(math.radians(a))
                  for a in np.arange(0, 360, sym)]
-        x = max(cands, key=lambda c: float(c @ xc))
-    y = np.cross(zin, x)
-    Rpart = np.column_stack([x, y, zin])             # desired part frame in the world
-    return Rpart @ Rin.T                              # hand rotation: R_hand @ R_in = R_part
+    Rh_now = quat_to_mat(q_now)
+
+    def hand_for(x):
+        y = np.cross(zin, x)
+        return np.column_stack([x, y, zin]) @ Rin.T   # desired part frame in the world; R_hand @ R_in = R_part
+
+    def yaw_change(Rh):                               # signed turn about the hand's own z = joint 7's change
+        Rr = Rh_now.T @ Rh
+        return math.atan2(Rr[1, 0] - Rr[0, 1], Rr[0, 0] + Rr[1, 1])
+    opts = [(abs(yaw_change(hand_for(x))), hand_for(x), yaw_change(hand_for(x))) for x in cands]
+    if q7 is not None and len(opts) > 1:
+        ok = [o for o in opts if abs(float(q7) + o[2]) <= J7_LIMIT - J7_MARGIN]
+        if ok:
+            return min(ok, key=lambda o: o[0])[1]
+        return min(opts, key=lambda o: abs(float(q7) + o[2]))[1]
+    return min(opts, key=lambda o: o[0])[1]
 
 
 class _EpisodeOver(Exception):
@@ -327,6 +345,11 @@ class TaskTools:
     def q(self, o=None) -> np.ndarray:
         return np.asarray((o or self.last)["tcp"]["quat"], float)
 
+    def q7(self, o=None):
+        """Observed joint 7 angle (rad), or None if the observation has no joint angles."""
+        qs = (o or self.last).get("q")
+        return float(qs[6]) if qs is not None and len(qs) >= 7 else None
+
     def s(self, o=None) -> float:
         """TCP coordinate along the hole axis (m; grows going into the hole)."""
         return float(self.p(o) @ self.zin)
@@ -396,7 +419,7 @@ class TaskTools:
 
     def grip_lost(self, o=None) -> bool:
         c = self.grip_closed_mm(o)
-        return c is not None and c > GRIP_CLOSE_MM
+        return c is not None and c > max(GRIP_CLOSE_MM, GRIP_CLOSE_FRAC * float(self.mem["grip_width_mm"]))
 
     def contact_hand(self, o=None):
         """Where the wrench's line of action meets the believed-tip plane, relative to the TCP in the HAND frame
@@ -565,7 +588,7 @@ class TaskTools:
             self._ref_force()
         if self.mem.get("grip_width_mm") is None:
             self.mem["grip_width_mm"] = round(1000 * float(o["gripper_width_m"]), 3)
-        Rh = hand_rotation(self.b, self.q(o))
+        Rh = hand_rotation(self.b, self.q(o), self.q7(o))
         self.mem["q_hand"] = _r(mat_to_quat(Rh), 6)
         qh = mat_to_quat(Rh)
         goal_tip = self.hole_point(offset_mm, -float(standoff_mm))
@@ -586,7 +609,7 @@ class TaskTools:
             if self.perceive is not None:
                 # a part can shift in the pads while the hand turns: look again, re-square, recompute the goal
                 self.set_belief(self.perceive())
-                Rh = hand_rotation(self.b, self.q())
+                Rh = hand_rotation(self.b, self.q(), self.q7())
                 self.mem["q_hand"] = _r(mat_to_quat(Rh), 6)
                 qh = mat_to_quat(Rh)
                 goal_tip = self.hole_point(offset_mm, -float(standoff_mm))
@@ -685,10 +708,12 @@ class TaskTools:
                     target = self.p() + dvec * (float(distance_mm) / 1000.0 - float((self.p() - p_start) @ dvec))
                 if slow:
                     v = SLOW_SPEED if self.b["axial_sigma_mm"] >= 3 else SLOW_SPEED_KNOWN
-                    # guard only the band where contact is possible: end it where an untouched tip must be in the
-                    # hole (height uncertainty + 2 mm + 1.5 mm past the believed surface), so a guarded leg (the env
-                    # caps it at 1.5-3 mm/s by the stop force) never runs into the env's 20 s move timeout
-                    end_s = float(self.H @ self.zin) + (self.b["axial_sigma_mm"] + ENGAGE_MM + 1.5) / 1000.0
+                    # guard only the band where contact is possible: end it 4 mm past the depth where an untouched
+                    # tip must be in the hole (height uncertainty + 2 mm past the believed surface), so a guarded leg
+                    # (the env caps it at 1.5-3 mm/s by the stop force) stays under the env's 20 s move timeout. The
+                    # 4 mm keep the spring pushing a tip that rubs in a tight hole (1.5 mm left one square peg
+                    # settled 2.9 mm in, short of the in-hole depth)
+                    end_s = float(self.H @ self.zin) + (self.b["axial_sigma_mm"] + ENGAGE_MM + 4.0) / 1000.0
                     room = end_s - float(self.tip() @ self.zin)
                     rest = float((target - self.p()) @ dvec)
                     if 0.0 < room < rest:

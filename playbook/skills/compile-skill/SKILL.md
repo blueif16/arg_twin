@@ -20,7 +20,7 @@ A routine is not a pre-written plan for the whole task. It owns the motion phase
 
 - A practice run of the **same brain**: `runs/<brain>/<run_id>/env/episodes.jsonl` with each episode's command log and 30 Hz trajectory, the ledger (`practice/ledger.json`: decisions and images per episode) and the run's task findings. Another brain's runs are refused by the tools (orchestrator.md: task findings stay with their brain).
 - The env API a routine may use (`envapi`, `twin/sandbox.py`): `task`, `observe`, `move` (absolute TCP target, speed, force ceiling, guarded stop), `gripper`, `wait`, and `finish` when standalone. Nothing else: no images, no simulator, no files outside its workspace.
-- The task tools' conventions (stage C, `task/v1`, `runs/<brain>/<run_id>/task_tools/manifest.json`), when they can run in the sandbox (Lessons: `twin/task_tools.py` does not pass `skill_check` yet).
+- The task tools' conventions (stage C, `task/v1`, `runs/<brain>/<run_id>/task_tools/manifest.json`), when they can run in the sandbox. As of 2026-10-25 09:00, `twin/task_tools.py` still fails `skill_check` (a `getattr` with a non-literal name), so the first routine speaks `envapi` directly and copies the tools' conventions (believed geometry, surface reference, hand-back codes).
 - The frozen sets of the run: practice and held-out starts, cousins, the real envelope (`twin/envelope.py`), `env/budget.json`.
 - Targets: `validation.yaml` E and G checks, and the sample-size header (one-sided 95% Clopper–Pearson lower bound ≥ 0.9 takes 29 / 46 starts with 0 / 1 failures).
 
@@ -136,7 +136,22 @@ The watcher runs these, never the actor:
 
 ## Lessons
 
-(See the dated entries below.)
+**2026-10-25, first routine `peg_insert_guarded`, compiled from the Claude stand-in's dry run (pilot, practice starts only; `runs/claude/run-compile-pilot-1/`).** Dev runs 1–9 on six named dev starts (round peg 4 and square peg 3, 002–004) are in `skills/evals/` and `compile/dev/`; the routine is `library/peg_insert_guarded/v1`.
+
+PILOT_RESULTS
+
+- **Success was easy; the envelope was the work.** Dev runs 1–6 seated 2–3 of 3 per part, but every episode broke the approach-speed lower bound (12.4 mm/s round, 10.5 square). The contact onset (|F − F_ref| > 2 N, `twin/envelope.py`) came from the slow surface touch or a force jump, never after a fast approach. Fix the routine, not the envelope:
+  - **Touch slowly, under 2 N.** The plate touch uses a ceiling of weight + 0.1 N at 1.5 mm/s. At rest that reads about 2 × weight + 0.1 N (1.63 N for round peg 4), so this only works for parts lighter than about 0.9 N. At 2–3 mm/s a tilted part's first touch spiked to 2.2–2.9 N for one 30 Hz sample, and that sample became the onset.
+  - **Unload under the last ceiling, never a higher one.** Raising the ceiling while the filtered target is still deep makes the spring jump: a 4 N onset spike after the touch, a 9 N spike after the seat press.
+  - **The hand lags the target.** The 0.2 s target filter plus the impedance make short fast segments slow at the hand: 25 mm/s over 7 mm gave 12 mm/s, and 60 mm/s over 10.5 mm gives 19–20 mm/s. Then 6 mm/s for the last 3.5 mm keeps the rim contact at 5–6 N; a 20 mm/s contact gave 16–28 N. The same lag is why a 12 mm push at 100 mm/s reaches 22–25 mm/s and 6 mm segments never reach the 17.8 mm/s insert-speed floor.
+- **Touch flat plate well clear of the hole.** At 16–21 mm from the hole, a 3.6 mm in-hand offset put the touch on the chamfer. The depth estimate then read 1.5–3 mm short, and a seated part was handed back as JAMMED. The touch spots are now 30 mm (round peg 4) and 28 mm (square peg 3) away.
+- **A straight-in entry is smoother than any real success.** With 18 mm from TCP to tip, a direct entry moved the TCP 0.3–0.4 mm (wiggle_mm; real minimum 0.64, 1st percentile 0.81). Once the tip is in the hole, lateral offsets do nothing: only tilt moves the TCP (lever × angle). The fix has two parts:
+  - an entry rock: 16 steps, 5° about the tip at about 2.8 mm depth, only when the tip went straight in;
+  - a push rock capped at the tilt the clearance allows at that depth (2c/depth). Together they give 0.92–1.09 mm.
+  - A fixed 4° rock deep in the hole loaded the walls through the 0.4 N·m torque ceiling: 15–19 N peaks and a `plausibility.force` flag.
+- **Duration and stalls cap the search.** Round contact must end within 19.2 s, so the routine hands back ENVELOPE_TIME after 10 s of contact, before the push; each probe takes about 3.2 s. The env's `progress.stuck` monitor ends an episode after 40 commands without progress, so square peg 3 stops at 5 probes and hands back NOT_FOUND first.
+- **The guarded-stop change does not touch this routine.** It uses force-limited moves only, no `stop_force`, so the env never imposes slow guarded segments. Every envelope violation above was the routine's own choice.
+- **Dev harness.** `compile/tools/inproc.py` runs a draft in-process through `twin.env._InProcessAPI` (the envapi surface, dt/2 off) at 20–30 s per episode, for parameter sweeps. It reproduces `skill_run`'s features exactly. Official numbers come from `skill_run` and `promotion_gate` only.
 
 ## Sources
 

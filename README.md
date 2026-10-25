@@ -2,7 +2,7 @@
 
 A 1-day hackathon build on Google's **Gemini 4 Argon**. Argon reads real robot footage, rebuilds the scene as a MuJoCo simulation (a "digital twin"), writes the success checks, then practises the task inside the twin until it is reliable. The work it has figured out gets compiled into fast routines, so each later attempt costs fewer tokens and less time.
 
-> **Status, 2026-10-25 09:15 PDT.** Everything below is **sim only** and **provisional**. No real arm has confirmed any result. The Argon API key is not set yet, so every result so far comes from **Claude agents standing in for Argon** (the "Claude stand-in" brain). When Argon runs, its skill library is wiped first, so its improvement is its own. Claude and Argon numbers are never merged.
+> **Status, 2026-10-25 09:45 PDT.** Everything below is **sim only** and **provisional**. No real arm has confirmed any result. The Argon API key is not set yet, so every result so far comes from **Claude agents standing in for Argon** (the "Claude stand-in" brain). When Argon runs, its skill library is wiped first, so its improvement is its own. Claude and Argon numbers are never merged.
 
 Contents: [1. The plan](#1-the-plan) · [2. Status](#2-status) · [3. What's hard](#3-whats-hard-so-far) · [4. How results are kept honest](#4-how-results-are-kept-honest) · [5. Data tracks](#5-data-tracks) · [6. Repo map and reading order](#6-repo-map-and-reading-order) · [7. Running it](#7-running-it)
 
@@ -60,7 +60,7 @@ Argon turns real robot footage into a simulated world shaped around the task, th
 
 ## 2. Status
 
-As of 2026-10-25 09:15 PDT. The full running record, with every decision and its reasoning, is [`docs/design/progress-log.md`](docs/design/progress-log.md).
+As of 2026-10-25 09:45 PDT. The full running record, with every decision and its reasoning, is [`docs/design/progress-log.md`](docs/design/progress-log.md).
 
 ### The overnight run
 
@@ -74,10 +74,10 @@ Checks and targets are frozen in [`playbook/validation.yaml`](playbook/validatio
 
 | Stage | Checks passing | Key numbers | Notes |
 |---|---|---|---|
-| **A** Read footage | **3/3** (one provisional) | Segment F1 **0.996**; success balanced accuracy **0.954**, provisional (12 real failures, under the 30 a firm claim needs); claims grounded **0.958** (23/24, all checked); ~32k tokens per recording minute (tracked) | Blind re-test of the refined skill on 3 new gate episodes. The refined skill names the part from *which hole* it enters and judges the outcome from end-state physics. The old skill scored 0.961 / 0.78 / 0.667 on 3 other gate episodes. A confirmation read of 6 more gate episodes, drawn by seed and fixed before scoring, is running. |
+| **A** Read footage | **3/3 ✓** | Segment F1 **0.992** (321 of 326 labelled); success balanced accuracy **0.947** (326 attempts, 30 real failures, 27 caught); claims grounded **0.947** (54 of 57, all checked); ~21k tokens per recording minute (tracked) | Blind reads of 9 gate episodes with the refined skill: 3 re-test plus 6 drawn by seed, scored once together as declared in advance. The refined skill names the part from *which hole* it enters and judges the outcome from end-state physics. The old skill scored 0.961 / 0.78 / 0.667 on 3 other gate episodes. The 6 new episodes alone: 0.990 / 0.942 / 31 of 33. |
 | **B0** World frame | 5/6 | Static cameras 1.4–1.7 px, two-view 0.17 px, tool tip 0.14 mm, board 2.37 mm | Episode 0 passes 6/6 (wrist 5.82 px). Episode 1 re-run from scratch: the wrist camera fails at 26 px because too few board points are visible. The latest record shows as a regression. |
 | **B1** Parts and contact | 4/4 | Settle penetration 0.038 mm; aligned seat 100%, misaligned jam 100%, dt/2 agreement 100% | Pegs only |
-| **B2** Replay vs reality | 1/6 | Free-space tracking **0.62 mm** ✓. Best twin (v3) seats **54%** of real attempts vs **78%** real (needs within 10 points); force KS 0.31 (needs ≤ 0.20) | **The main blocker.** The twin is systematically too strict (see §3). Two fixes are being fitted in parallel. |
+| **B2** Replay vs reality | 1/6 | Free-space tracking **0.62 mm** ✓. Seat rate vs real **78%** (needs within 10 points), train cross-validation: v3 **54%**; grasp compliance (v5b) **63%**; softer board contact (v5a) **58%**, force KS 0.20 | **The main blocker.** Neither round-5 fix passes the negative control: a deliberately loose twin is still as close to reality. So nothing went to gate. Most missed seats arrive more than 1 mm off the hole before release (see §3). A diagnosis agent is tracing why. |
 | **C** Task tools | not scored yet | Tools built; self-test running | |
 | **D** Practice | not scored yet | First end-to-end dry run: 3 of 6 practice starts counted | Dry run, never scored. All four harness fixes from it are done: false flag, fast rendering, force stops within 0.31 N, budget stop. Red team still 0 counted exploits. |
 | **E** Compile | not scored yet | First routine (`peg_insert_guarded`, zero brain calls): round peg 4 seated 3/3 on practice starts, but too slow for the real-data speed envelope | Pilot |
@@ -88,23 +88,22 @@ Checks and targets are frozen in [`playbook/validation.yaml`](playbook/validatio
 
 | Agent | Working on |
 |---|---|
-| B2 5a | Fit global contact parameters (hole clearance, friction, contact softness) as a distribution, QBIT style, on train with recording-level cross-validation. First screen: softer contact made it *worse* (25% seat rate). |
-| B2 5b | A physical grasp-compliance model (soft pads, rotational give in the grasp) identified from measured tilt and slip, holes kept nominal |
+| B2 diagnosis | Split the >1 mm arrival error into board pose, hand drift and in-hand pose; measure how much of the seat-rate gap each one explains with "make this one source perfect" replays; propose round-6 fixes from the knowledge base, or show the gate can't be met by open-loop replay |
 | Task tools (C) | Rerun the self-test on the fixed env (exact vs believed info), handle the 5.5–7.1° in-hand tilt on round peg 1, log every env command |
 | Compile (E) | Fix the routine's envelope violations on the fixed env, cousins pilot |
-| A confirmation | Read 6 more gate episodes cold (24, 42, 58, 65, 92, 117) |
 
 Finished since the restart:
 - **Environment fixes.** Side effect: force-guarded moves are slower now, so brains guard only the last 3–5 mm.
 - **SO-101.**
-- **The blind re-test.**
+- **The blind re-test and the 6-episode A confirmation.** Stage A now passes firmly.
+- **B2 round 5:** both fixes, global contact (5a) and grasp compliance (5b). Neither is selectable.
 - **A page fix:** steps with work but no scores now show "◐ not scored yet" on the flowchart.
 
 **B2 selection rule, fixed in advance:** the formulation with the lower train-CV seat-rate error wins, provided it also passes the loose-twin negative control. The watcher then scores gate once with the winner.
 
 ### Next, in order
 
-1. The watcher scores what's pending: C tool success, A on the 9 refined-skill episodes, and B2 gate with the winner.
+1. The watcher scores C tool success when task tools reports, and B2 gate once a formulation passes the train negative control.
 2. **Attempt 1, the baseline**: a stand-in on frozen held-out starts (29 per part, enough for a ≥ 0.9 claim) with a frozen budget.
 3. **Attempt N** on the same starts, with task tools and practice. Measures tokens, calls and time per success.
 4. **Compile**: promote the best routine through the full gate, then rerun with zero brain calls.
@@ -119,10 +118,15 @@ Finished since the restart:
   - the twin jams at ~1° where geometry allows ~0.64°
   - parts slide ~3.5 mm along the pads
 
-  A force-matched particle filter on the GPU (round 4) made things worse. The rig seated 8–15% of its worlds against ~50% for the CPU replay.
+  What's been tried:
+  - **Round 4, a force-matched particle filter on the GPU:** made things worse. The rig seated 8–15% of its worlds against ~50% for the CPU replay.
+  - **Round 5, two fixes in parallel:**
+    - **Grasp compliance:** spring hinges on the fingers, stiffness from measured pad compression. Seat rate went 54% → 63%.
+    - **Global contact settings:** friction and wider holes top out at 64%; only softer contact goes further. The one setting that "passed" every number did so by sinking pegs up to 15 mm into the hole bottom, so it was rejected.
+  - **The common finding:** 60 of the 72 real seats the compliant twin still misses arrive more than 1 mm off the hole, against 0.05–0.25 mm clearance. The replayed motion drifts before release, and no contact or grasp setting can fix that. Next is to find where that drift comes from: board pose, tracking or in-hand pose.
 - **The log hides the in-hand pose.** The recording leaves the part's pose in the gripper about 6 mm uncertain, against 0.05–0.25 mm clearance. That's why the agreed B2 gate is distribution-level (seat rate and force spread) rather than per-attempt prediction, which plateaued at ~0.65 accuracy.
 - **The wrist camera needs evidence.** Calibration works when enough board points are in view (5.8 px on episode 0) and fails on thin evidence (17–26 px on episode 1).
-- **Reading footage:** naming the part from the hole it goes into, and judging success from the end state, fixed most errors. The skill had misled the reader on connector grip widths and on "no nut travel means failure". Reading costs about 32k tokens per recording minute, measured from transcript usage. An earlier 13k figure was a self-estimate and undercounted.
+- **Reading footage:** naming the part from the hole it goes into, and judging success from the end state, fixed most errors. The skill had misled the reader on connector grip widths and on "no nut travel means failure". Reading costs about 14–21k tokens per recording minute, measured from transcript usage: 20.8k pooled over 9 episodes, 13.9k for the latest reader. The first re-test cost more because it was resumed after the restart.
 - **Splits must cover the workspace (SO-101).** Cutting train and gate by episode number left the gate's brick positions outside anything train covered. The playbook now asks for a coverage check, and a joint-units step, before fitting.
 - **Practice:** the brain controls through a narrow env API with force and speed caps enforced in code. The first dry run found three harness bugs: a false integrity flag, a slow image path, and guarded stops overshooting their force limit. Fixes are in progress.
 

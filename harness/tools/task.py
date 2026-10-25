@@ -220,7 +220,8 @@ def task_state(session: str, brain: str = "claude", run_id: str = "run-standin-1
 
 @tool("task_approach",
       "Task tools (task/v1), approach_hole + align. Squares the hand so the believed part axis is on the hole axis "
-      "(round: keeps the current yaw; square: the allowed yaw nearest the current one, joint 7 has +-3.05 rad), "
+      "(round: keeps the current yaw; square: the allowed yaw nearest the current one that keeps joint 7 0.25 rad "
+      "inside its +-3.05 rad), "
       "rises first if the tip is low, crosses over and hovers the believed tip standoff_mm above the believed hole "
       "entry (plus offset_mm in the hole frame), then waits until the hand converged (lateral <= 0.3 mm, rotation "
       "<= 0.7 deg; large re-orientations creep at ~2 deg/s under the env's torque ceiling, up to 12 s), then trims the "
@@ -299,7 +300,7 @@ def task_move_until_contact(session: str, direction="down", distance_mm: float =
       "(a chamfer caught on the edge) is checked with a confirming press, at most twice. Stops when the tip drops below the touch height. Keep pitch_mm under twice "
       "(chamfer + clearance): 0.9 mm for the 4 mm pegs, 1.7 mm for 8 mm. ok: dropped in (engaged). NOT_FOUND: the hole "
       "is further than radius_mm (board error p90 4 mm) or the part is tilted in the hand. GRIP_SLIP: the grip check "
-      "found the part turning in the fingers (nothing moved), or the fingers closed > 1 mm further during the search. "
+      "found the part turning in the fingers (nothing moved), or the fingers closed > max(1 mm, 20% of their width) further during the search. "
       + FEEDBACK,
       {"type": "object", "required": ["session"], "properties": {
           **_SES, "pattern": {"type": "string", "enum": ["spiral", "raster"], "default": "spiral"},
@@ -339,7 +340,7 @@ def task_search(session: str, pattern: str = "spiral", radius_mm: float | None =
       "from the first touch point: useful when the touch point is further from the believed tip than the part radius). "
       "release: "
       "open and retreat after an estimated seat. ok: estimated seated (and released). Failure: JAMMED, SHALLOW, "
-      "GRIP_SLIP (the part turns in the fingers: the grip check after the first touch, the fingers closing > 1 mm, or "
+      "GRIP_SLIP (the part turns in the fingers: the grip check after the first touch, the fingers closing > max(1 mm, 20%), or "
       "the hand going past the seat; correct the grip or regrasp), NOT_FOUND, NO_CONTACT, UNEXPECTED_CONTACT. The "
       "episode's real outcome comes from env_finish. " + FEEDBACK,
       {"type": "object", "required": ["session"], "properties": {

@@ -43,7 +43,7 @@ Code:
 **1. Design from the frames, not the simulator.** Write every target in the hole frame and convert with the belief:
 - tip_world = TCP + R_hand · tip_tcp;
 - R_hand = R_part · R_inᵀ (put the believed part axis on the hole axis).
-Choose the yaw from the hole's symmetry nearest the current hand yaw. Joint 7 has ±3.05 rad, and squaring the hand once drove it to its limit (sim-integrity Lessons).
+Choose the yaw from the hole's symmetry nearest the current hand yaw that keeps joint 7 (read from the observation) 0.25 rad inside its ±3.05 rad. Joint 7 turns the hand about its own z, so a yaw change moves it one for one; ignoring it drove joint 7 past its limit (Lessons).
 
 **2. Information honesty: the hard part of the task is not knowing where things are.** A tool may use only:
 - `task()`: the nominal board, the nominal grasp, and limits;
@@ -77,7 +77,7 @@ Units are mm, N, deg and m/s, in the hole frame. Each tool's description says wh
 - the contact point in the HAND frame (the wrench's line of action cut with the believed-tip plane);
 - how far the hand sank.
 
-A rigid grip moves neither (< 0.15 mm, < 0.1 mm). A turning grip moves the contact ≥ 0.5 mm and lets the hand sink ≥ 0.15 mm; both must hold, because a flat face's centre of pressure can wander without sinking. Then searching or pushing only turns the part further and fakes a drop. So `task_search` and `task_insert` refuse with GRIP_SLIP until the brain corrects the grip. The tool hands over a rough tilt from atan(sink / shift) and a suggested `corrections.grip`. Also watch the gripper width: fingers closing > 1 mm past their width at the approach mean the part is slipping out.
+A rigid grip moves neither (< 0.15 mm, < 0.1 mm). A turning grip moves the contact ≥ 0.5 mm and lets the hand sink ≥ 0.15 mm; both must hold, because a flat face's centre of pressure can wander without sinking. Then searching or pushing only turns the part further and fakes a drop. So `task_search` and `task_insert` refuse with GRIP_SLIP until the brain corrects the grip. The tool hands over a rough tilt from atan(sink / shift) and a suggested `corrections.grip`. Also watch the gripper width: fingers closing more than max(1 mm, 20%) past their width at the approach mean the part is slipping out.
 
 **Corrections change what memory means.** Contact memory in TCP coordinates (touch height, touch point, engaged) is stale once the grip changes, so the harness forgets it when a `grip` correction arrives. Keep the progress counters (`deepest_s`, `commands_since_drop`): the env's no-progress count runs on. Only a correction that gives `grasp_from_top_mm` narrows the tip-height band.
 
@@ -141,7 +141,10 @@ A rigid grip moves neither (< 0.15 mm, < 0.1 mm). A turning grip moves the conta
   - They adapted to the new interface. Free-space legs (approach, the lead-in to the contact band, re-aims, the retreat) are unguarded moves with an 8–15 N spring ceiling, checked after the move (|F − F_ref| ≥ 3 N counts as unexpected contact). Only the band where contact is possible is guarded.
   - Guarded moves carry no tool-side timeout. Before this change, the approach legs guarded at 3 N crawled at 2 mm/s, and the timed band timed out at 3 mm depth in the hole (an aborted self-test run, `selftest/20261025-021137-aborted-envchange`).
   - Lesson: a tool built on another agent's env must re-run its self-test whenever `twin/env.py` changes. The manifest records the env hash the tools were tested with, and each self-test's `config.json` records the hashes of the tool, env, monitor and evaluator files.
-- **Guard only where contact is possible.** At 1.5–3 mm/s, a guarded leg longer than about 30 mm runs into the env's 20 s move timeout. The downward guarded leg now ends where an untouched tip must already be in the hole (height uncertainty + 2 mm + 1.5 mm past the believed surface). That is about 25 mm uncorrected (≤ 15 s) and 8.5 mm with a known height (about 5 s). Everything above the band is an unguarded move with the post-check.
+- **Guard only where contact is possible.** At 1.5–3 mm/s, a guarded leg longer than about 30 mm runs into the env's 20 s move timeout. The downward guarded leg now ends 4 mm past the depth where an untouched tip must already be in the hole (height uncertainty + 2 mm past the believed surface): about 28 mm uncorrected (≤ 17 s) and 11 mm with a known height (about 7 s). Everything above the band is an unguarded move with the post-check.
+  - Don't cut the margin to the bone. With 1.5 mm instead of 4, square peg 2-002 (exact) slid 2.9 mm into its tight hole and the leg ended `settled`: the spring's last 2 mm pressed only about 1 N against the wall friction. The tip was short of the in-hole depth, so the tool reported NO_CONTACT. With 4 mm it went 6.9 mm in and seated.
+- **Joint 7 decides a square part's yaw.** Joint 7 turns the hand about its own z, so a yaw change of d moves it by d. Choosing "the symmetric yaw nearest the current one" drove joint 7 to 3.052 rad on square pegs 2-002 and 4-002 (exact). That raised the invalidating `plausibility.joint_range` flag; on 4-002 it also stopped the hand 11° short of square, and the part jammed. The approach now reads joint 7 from the observation and takes the nearest yaw that keeps it 0.25 rad inside its range. Both starts then succeeded in a check run.
+- **Slip is relative.** A 12 mm peg held 2 mm from its top settled 1.0 mm narrower in the fingers and stayed upright (round peg 3-001, believed). Round peg 1, slipping out, went from 3.2 to 1.0 mm. The width check now fires at max(1 mm, 20% of the width at the approach).
 
 ## Sources
 

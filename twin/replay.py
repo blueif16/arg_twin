@@ -289,6 +289,9 @@ class ReplayParams:
     solimp: tuple = (0.95, 0.99, 0.0005, 0.5, 2.0)
     cone: str = "elliptic"
     impratio: float = 10.0
+    noslip_iterations: int = 0       # MuJoCo noslip post-solver iterations (0 = off, unchanged). It suppresses the soft-
+    #                                  contact creep that lets a light part turn in the pads with no load (about 1 deg/s;
+    #                                  replay/diag, 2026-10-25); a solver option set before t = 0
     board_solref_tc: float | None = None  # board geoms' own contact time constant (None: solref_tc, i.e. unchanged).
     #                                       The part-board pair mixes to the mean of part and board (solmix 1:1);
     #                                       the pads and the part keep solref_tc (v5a knob, 2026-10-25)
@@ -315,6 +318,17 @@ class ReplayParams:
     max_s: float = 30.0
     preroll_s: float = 0.25          # before t = 0: grip the part, arm held at the logged start pose
     stiff_k: float = 2e4             # stiff kinematic replay gains (N/m; rot = stiff_k / 20 Nm/rad)
+    # DIAGNOSIS ONLY (B2 arrival-error diagnosis, 2026-10-25; runs/claude/run-standin-1/replay/diag/). The oracles
+    # read the log after t = 0 or change the model after t = 0, so they never go in a frozen, gate or practice
+    # params file. Defaults reproduce the behaviour without them.
+    diag_trace: bool = False         # per-frame sim/log hand pose, part tip and axis, forces -> result["diag"]
+    diag_hand_oracle_k: float = 0.0  # N/m: extra wrench K_h (x_log - x) + D_h (v_log - v) pins the twin TCP to the
+    #                                  LOGGED TCP (D_h critical on the arm's Lambda); 0 = off
+    diag_hand_oracle_kr: float = 0.0  # Nm/rad: the same for the TCP orientation; 0 = off
+    diag_hand_oracle_axes: str = "lateral"  # lateral = only in the board plane (the axial push stays compliant) | all
+    diag_inhand_lock: bool = False   # weld the part to the hand at its registered (t = 0) pose until the logged release
+    diag_board_oracle: bool = False  # after registration, shift the board so the registered tip sits on the hole axis
+    #                                  at k_ref with the registered depth (absorbs the clipped residual and grasp height)
 
     def as_dict(self) -> dict:
         d = asdict(self)
@@ -406,6 +420,8 @@ def build_model(part_name: str, board_pose: dict, rp: ReplayParams, tcp_pose=Non
     spec.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     spec.option.cone = mujoco.mjtCone.mjCONE_ELLIPTIC if rp.cone == "elliptic" else mujoco.mjtCone.mjCONE_PYRAMIDAL
     spec.option.impratio = float(rp.impratio)
+    if rp.noslip_iterations:
+        spec.option.noslip_iterations = int(rp.noslip_iterations)
     spec.option.solver = mujoco.mjtSolver.mjSOL_NEWTON
     spec.option.tolerance = 1e-10
     spec.option.iterations = 100
@@ -474,6 +490,14 @@ def build_model(part_name: str, board_pose: dict, rp: ReplayParams, tcp_pose=Non
     else:
         ppos, pquat = part_world_pose(part, tcp_pose[0], tcp_pose[1], rp, R_inhand)
     add_part_body(spec, spec.worldbody, part, ppos, pquat, free=True, contact=pc)
+    if getattr(rp, "diag_inhand_lock", False):  # DIAGNOSIS ONLY: relpose set in run_replay, released at the release
+        eq = spec.add_equality()
+        eq.type = mujoco.mjtEq.mjEQ_WELD
+        eq.objtype = mujoco.mjtObj.mjOBJ_BODY
+        eq.name = "diag/inhand_lock"
+        eq.name1, eq.name2 = "gripper/hand", part.slug
+        eq.solref = [max(0.002, 2 * rp.timestep), 1.0]
+        eq.solimp = [0.9999, 0.9999, 0.001, 0.5, 2.0]
     for cname, cam in (cameras or {}).items():
         c = spec.camera(cname)
         if c is None:
@@ -751,6 +775,32 @@ def register_inhand(bp: dict, part: str, s: dict, f: dict, rp: ReplayParams):
     return R_in, dx, dy, g, info
 
 
+def _board_oracle(bp: dict, part: str, s: dict, f: dict, rp: ReplayParams, R_in, dx: float, dy: float, g: float,
+                  k: int) -> dict:
+    """DIAGNOSIS ONLY: move the board so that the registered tip (logged hand at k_ref, registered in-hand pose)
+    sits on the hole axis at the registration's target depth. Undoes what the clipped dx/dy and the clipped
+    grasp height could not absorb: the hole is put where this attempt's own pose says it was."""
+    from twin.parts import load_layout, part_spec
+    ps = part_spec(part, load_layout())
+    hxy = bp.get("hole_xy") or list(ps.hole_xy)
+    Rb = quat_to_mat(bp["quat"])
+    n = Rb[:, 2]
+    H = np.asarray(bp["pos"]) + Rb @ np.array([hxy[0], hxy[1], rp.surface_z])
+    Rh = quat_to_mat(s["ee"][k, 3:7])
+    p = s["ee"][k, :3] - Rh[:, 2] * pad_to_tcp(rp)
+    a_ = Rh @ np.asarray(R_in) @ np.array([0.0, 0.0, 1.0])
+    tip = p + a_ * (ps.length - g) + Rh[:, 0] * dx + Rh[:, 1] * dy
+    released = (k == f["release"] and f.get("released", True))
+    d_t = rp.reg_depth if (released and rp.reg_height == "ref") else 0.0
+    Pb = np.eye(3) - np.outer(n, n)
+    resid = Pb @ (H - tip)
+    depth = float((H - tip) @ n)
+    shift = -resid + (d_t - depth) * n
+    out = dict(bp, source=bp["source"] + " + diag board oracle", pos=(np.asarray(bp["pos"]) + shift).tolist())
+    out["diag_board_shift_mm"] = (1000 * shift).round(3).tolist()
+    return out
+
+
 def _inhand_oracle(bp: dict, s: dict, k_rel: int, rp: ReplayParams, depth: float = 0.002):
     """DIAGNOSTIC ONLY: in-hand pose that makes the part stand along the hole axis at the real release, with
     its tip `depth` into the hole: tilt = the hand's tilt at release, grasp height from the TCP height."""
@@ -770,6 +820,73 @@ def _inhand_oracle(bp: dict, s: dict, k_rel: int, rp: ReplayParams, depth: float
     below = tcp_b[2] - rp.surface_z + depth  # tip this far below the TCP puts it `depth` into the hole
     g = float(np.clip(0.050 - below, 0.0, 0.03))
     return R_inhand, g
+
+
+def _diag_setup(m, d, slug: str, s: dict, k0: int, rp: ReplayParams) -> dict:
+    """DIAGNOSIS ONLY, at the initial (registered) state before the pre-roll: the part tip and axis in the LOGGED
+    TCP frame of the window start (what the registration intends), and the in-hand weld's relative pose."""
+    import mujoco
+    tip = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, f"{slug}/tip")
+    R0 = quat_to_mat(s["ee"][k0, 3:7])
+    x0 = s["ee"][k0, :3]
+    out = dict(tip_site=int(tip), tip_reg_tcp=(R0.T @ (d.site_xpos[tip] - x0)).tolist(),
+               axis_reg_tcp=(R0.T @ d.site_xmat[tip].reshape(3, 3)[:, 2]).tolist(), lock_eq=-1)
+    e = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_EQUALITY, "diag/inhand_lock")
+    if e >= 0:
+        b1, b2 = int(m.eq_obj1id[e]), int(m.eq_obj2id[e])
+        R1 = d.xmat[b1].reshape(3, 3)
+        m.eq_data[e, :3] = 0.0
+        m.eq_data[e, 3:6] = R1.T @ (d.xpos[b2] - d.xpos[b1])
+        qrel = np.zeros(4)
+        qneg = np.zeros(4)
+        mujoco.mju_negQuat(qneg, d.xquat[b1])
+        mujoco.mju_mulQuat(qrel, qneg, d.xquat[b2])
+        m.eq_data[e, 6:10] = qrel
+        m.eq_data[e, 10] = 1.0
+        mujoco.mj_forward(m, d)
+        rows = [i for i in range(d.nefc) if d.efc_type[i] == mujoco.mjtConstraint.mjCNSTR_EQUALITY and d.efc_id[i] == e]
+        out["lock_eq"] = int(e)
+        out["lock_violation_at_t0"] = float(np.abs(d.efc_pos[rows]).max()) if rows else None
+    return out
+
+
+class _HandOracle:
+    """DIAGNOSIS ONLY: joint torques J^T [F; T] that pin the twin TCP to the logged TCP (uses the log after t = 0)."""
+
+    def __init__(self, s: dict, k0: int, k1: int, ts: np.ndarray, rp: ReplayParams, n_board: np.ndarray):
+        self.ts = ts
+        self.X = s["ee"][k0:k1 + 1, :3].copy()
+        self.Q = s["ee"][k0:k1 + 1, 3:7].copy()
+        self.V = np.gradient(self.X, ts, axis=0)
+        W = np.zeros_like(self.X)
+        for i in range(len(ts)):
+            a, b = max(0, i - 1), min(len(ts) - 1, i + 1)
+            if b > a:
+                W[i] = _quat_log(self.Q[a], self.Q[b]) / (ts[b] - ts[a])
+        self.W = W
+        self.k, self.kr = float(rp.diag_hand_oracle_k), float(rp.diag_hand_oracle_kr)
+        if rp.diag_hand_oracle_axes not in ("lateral", "all"):
+            raise ValueError("diag_hand_oracle_axes must be lateral | all")
+        n = np.asarray(n_board, float)
+        self.P = np.eye(3) - np.outer(n, n) if rp.diag_hand_oracle_axes == "lateral" else np.eye(3)
+        self.last_F = 0.0
+
+    def tau(self, ctrl, d, t: float) -> np.ndarray:
+        x_l, q_l = _interp_targets(self.ts, self.X, self.Q, t)
+        i = int(np.clip(np.searchsorted(self.ts, t), 0, len(self.ts) - 1))
+        x, q, R = ctrl.arm.pose(d)
+        J = ctrl.arm.jac(d)
+        v = J @ d.qvel[ctrl.arm.dadr]
+        Lam = ctrl.last["Lam"]
+        lt, Qt = np.linalg.eigh(0.5 * (Lam[:3, :3] + Lam[:3, :3].T))
+        Dt = Qt @ np.diag(2 * np.sqrt(self.k * np.clip(lt, 1e-3, None))) @ Qt.T
+        F = self.P @ (self.k * (x_l - x) + Dt @ (self.V[i] - v[:3]))
+        T = np.zeros(3)
+        if self.kr > 0:
+            lr = float(np.linalg.eigvalsh(0.5 * (Lam[3:, 3:] + Lam[3:, 3:].T)).max())
+            T = -self.kr * rot_error(q, q_l, R) + 2 * math.sqrt(self.kr * max(lr, 1e-4)) * (self.W[i] - v[3:])
+        self.last_F = float(np.linalg.norm(F))
+        return J.T @ np.r_[F, T]
 
 
 def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = None, mode: str = "compliant",
@@ -815,6 +932,9 @@ def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = Non
         R_inhand, dx, dy, g, reg_info = register_inhand(bp, part, s, f, rp)
         th, ph = reg_info.pop("_angles")
         rp = replace(rp, grasp_dx=dx, grasp_dy=dy, grasp_from_top=g, grasp_rock=th, grasp_pivot=ph)
+        if rp.diag_board_oracle:  # DIAGNOSIS ONLY
+            bp = _board_oracle(bp, part, s, f, rp, R_inhand, dx, dy, g, reg_info["k_ref"])
+            reg_info["diag_board_shift_mm"] = bp["diag_board_shift_mm"]
     k0 = f["start"]
     n_all = len(s["t"])
     if mode == "free":
@@ -841,6 +961,7 @@ def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = Non
             if j >= 0:
                 d.qpos[m.jnt_qposadr[j]] = sgn * ref
     mujoco.mj_forward(m, d)
+    dg = _diag_setup(m, d, slug, s, k0, rp) if (rp.diag_trace or rp.diag_inhand_lock) else None  # DIAGNOSIS ONLY
     q_open = close_fingers_on_part(m, d, slug, dy=rp.grasp_dy)
     mujoco.mj_forward(m, d)
     grip_act = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, "gripper/actuator8")
@@ -882,6 +1003,11 @@ def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = Non
 
     T = float(ts[-1])
     rec_t, sim_x, sim_q, sim_F, sim_T, ins, held = [], [], [], [], [], [], []
+    oracle = None  # DIAGNOSIS ONLY (diag_* fields; off by default)
+    if rp.diag_hand_oracle_k > 0 or rp.diag_hand_oracle_kr > 0:
+        oracle = _HandOracle(s, k0, k1, ts, rp, quat_to_mat(bp["quat"])[:, 2])
+    lock_eq = dg["lock_eq"] if dg is not None else -1
+    dtrace = [] if rp.diag_trace else None
     renderer = _Recorder(m, record_video) if record_video else None
     next_rec = 0
     t0w = time.perf_counter()
@@ -899,6 +1025,11 @@ def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = Non
             sim_T.append(Ts)
             ins.append([st["depth"], st["lateral"], st["tilt_deg"], st.get("axial_resist", 0.0), float(st["seated"])])
             held.append(float(d.qpos[m.jnt_qposadr[jid("gripper/finger_joint1")]]))
+            if dtrace is not None:  # DIAGNOSIS ONLY
+                ts_ = dg["tip_site"]
+                dtrace.append(np.r_[d.site_xpos[ts_], d.site_xmat[ts_].reshape(3, 3)[:, 2],
+                                    0.0 if oracle is None else oracle.last_F,
+                                    float(d.eq_active[lock_eq]) if lock_eq >= 0 else -1.0])
             if renderer is not None:
                 renderer.capture(d, next_rec)
             next_rec += 1
@@ -909,6 +1040,10 @@ def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = Non
             ctrl.set_target(xt, qt, direct=True)
             d.ctrl[:7] = ctrl.torque(d)
             d.ctrl[grip_act] = grip_cmd(min(k0 + int(t * FPS), k1))
+            if oracle is not None:  # DIAGNOSIS ONLY
+                d.ctrl[:7] = d.ctrl[:7] + oracle.tau(ctrl, d, t)
+            if lock_eq >= 0 and d.eq_active[lock_eq] and d.ctrl[grip_act] != GRIP_CLOSED:  # DIAGNOSIS ONLY
+                d.eq_active[lock_eq] = 0
         mujoco.mj_step(m, d)
         step += 1
         if d.warning[mujoco.mjtWarning.mjWARN_BADQACC].number > 0 or not np.isfinite(d.qpos).all():
@@ -934,6 +1069,22 @@ def run_replay(ep: int, segment_index: int, rp: ReplayParams | dict | None = Non
             res["registration"]["sim_depth_at_ref_mm"] = round(1000 * float(ins[i_ref][0]), 3)
             res["registration"]["sim_lateral_at_ref_mm"] = round(1000 * float(ins[i_ref][1]), 3)
             res["registration"]["sim_tilt_at_ref_deg"] = round(float(ins[i_ref][2]), 3)
+    if dtrace is not None:  # DIAGNOSIS ONLY: everything the arrival-error decomposition needs, per log frame
+        nr = len(rec_t)
+        kk = np.arange(k0, k0 + nr)
+        e_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, f"{slug}_hole/entry")
+        Fr = np.array([wrench_at(s, k, tb)[0] for k in kk]) if tb is not None else s["F"][kk]
+        res["diag"] = dict(
+            cols="sim tcp xyz, sim tcp quat wxyz, sim tip xyz, sim part axis xyz, sim F xyz, log tcp xyz, log quat wxyz, "
+                 "real F (tared) xyz, oracle |F| N, lock active",
+            tip_reg_tcp=np.round(dg["tip_reg_tcp"], 6).tolist(), axis_reg_tcp=np.round(dg["axis_reg_tcp"], 6).tolist(),
+            lock_violation_at_t0=dg.get("lock_violation_at_t0"),
+            hole_entry=np.round(d.site_xpos[e_id], 6).tolist(),
+            hole_axis=np.round(d.site_xmat[e_id].reshape(3, 3)[:, 2], 6).tolist(),
+            k_ref_i=None if reg_info is None else int(reg_info["k_ref"] - k0), release_i=int(f["release"] - k0),
+            onset_real_i=None if f["onset"] is None else int(f["onset"] - k0),
+            rows=np.round(np.column_stack([np.array(sim_x), np.array(sim_q), np.array(dtrace)[:, :6], np.array(sim_F),
+                                           s["ee"][kk, :3], s["ee"][kk, 3:7], Fr, np.array(dtrace)[:, 6:8]]), 6).tolist())
     if renderer is not None:
         res["video_frames"] = renderer.files
         src = {v.get("_source") for v in (cams or {}).values()}

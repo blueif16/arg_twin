@@ -144,3 +144,21 @@ A read ─► B twin (pegs) ─► C task tools ─► D practice ─► E compi
   - Seeded draw of 6 unread gate episodes (24, 42, 58, 65, 92, 117; runs/claude/run-standin-1/footage_blind/confirm_episodes.json).
   - One fresh blind reader.
   - The watcher scores the 9 refined-skill episodes together once, plus the 6 alone. N is fixed now; no episodes are added after looking.
+- 2026-10-25 09:15: pushed bf64081 to GitHub (README status refreshed: A passes with provisional bacc, T2 scored and parked, env fixes, page fix; includes running agents' in-progress edits).
+- 2026-10-25: **B2 5b returned: not selectable.**
+  - Grasp-compliance model: coupled finger rock hinges, stiffness identified from the pad compression gap (round 4.2, square 7.4 Nm/rad).
+  - CV seat rate 0.630 vs real 0.776 (error −0.146; v3 −0.237), KS 0.295.
+  - **Train negative control fails (−0.036):** the permissive twin seats 0.656.
+  - B1 probes pass; compliance lets no extra misaligned parts in; replay dt/2 agreement 94%.
+  - Key finding: 60 of 72 missed real seats arrive more than 1 mm off the hole, so the replay drifts before release, beyond what compliance can fix.
+  - Launched a B2 diagnosis agent (train): decompose the arrival error (board pose, tracking drift, in-hand pose), attribute the seat-rate gap with oracle ablations, and propose 2–3 formulations from docs/knowledge, or show the gate is unreachable for open-loop replay.
+  - 5a is still running; the selection rule waits for it.
+- 2026-10-25: **B2 5a returned.**
+  - v5a = v3 + board softness 0.016 (QBIT floor; no seated window breaks the penetration limit).
+  - CV error −0.195, KS 0.20, negative control −0.094 (fails). Friction and widening top out at a 0.64 seat rate.
+  - A 40/80 ms softness mixture "passes" (error −0.05, KS 0.15, control +0.104), but only by sinking pegs 0.8–1.7 mm into the walls; all 35 sampled seats break the limit. Correctly not frozen.
+  - **Selection rule outcome:** neither 5a nor 5b passes the train negative control, so nothing goes to gate.
+  - B2 round 6 waits for the diagnosis agent; 5a's findings were sent to it. Combining compliance with an arrival-error fix is the lead hypothesis.
+- 2026-10-25 09:25 heartbeat: 4 running, all active: task tools (selftest 084509 still writing at 09:24), compile (v1 pilot gate run), A confirmation (episodes 24, 42, 58, 65 under way), B2 diagnosis (attempts and plots). Load 6. Critical path active (C, E); no action.
+- 2026-10-25 09:35: A confirmation reads returned (6 gate episodes, 204 segments, 16 called failures, 32.4 min; ep42 had a fallback board fit). Resumed the watcher to score the 9 refined-skill episodes pooled, once.
+- 2026-10-25 09:45: **A passes firmly** (watcher, 9 refined-skill gate episodes pooled, scored once): F1 0.992, success bacc 0.947 (30 real failures, 27 caught; no longer provisional), claims 54/57 = 0.947, 20.8k tokens per minute pooled. ep42's fallback board fit caused no errors. Pushed README refresh (A firm, B2 round 5).
