@@ -1,0 +1,511 @@
+{
+ "cameras": {
+  "hama1": {
+   "name": "hama1",
+   "parent": "world",
+   "pos": [
+    1.45477,
+    -0.67178,
+    0.53978
+   ],
+   "quat": [
+    0.676429,
+    0.522754,
+    0.299288,
+    0.423792
+   ],
+   "fx": 553.96,
+   "fy": 553.96,
+   "cx": 317.14,
+   "cy": 222.22,
+   "width": 640,
+   "height": 480,
+   "fovy_deg": 46.85,
+   "T_parent_cam_opencv": [
+    [
+     0.461655,
+     0.260422,
+     -0.847971,
+     1.45477
+    ],
+    [
+     0.886238,
+     -0.094258,
+     0.45354,
+     -0.67178
+    ],
+    [
+     0.038184,
+     -0.960883,
+     -0.274311,
+     0.53978
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "status": "provisional: actor held-out finger pads 1.7 px (hama1) / 1.0 px (hama2), two-view 0.4 px, with tcp.hand_offset_m and latency applied; scored with the base.xml hand (as measure_b0 does today) the same marks read about 12 px, so B0.kp_* needs the base.xml stack fix first. Exploratory: episode 0 only",
+   "method": "robot-keypoint bundle adjustment (calibrate_static_cameras, twin/camcal.py): render-and-compare of black joint caps (links 3-6) + finger pads on 557 frames, 8 plate-corner marks; hama1+hama2 jointly with shared f/cx/cy, per-camera latency, tool offset and board plate height; Cauchy loss; 3 iterations from the previous calib. Fit: runs/claude/run-standin-1/world/static_fit.json",
+   "latency_frames": -0.784,
+   "dist_k1_k2": [
+    0.0,
+    0.0
+   ],
+   "eval": {
+    "auto_heldout_px": {
+     "arm": 0.66,
+     "pads": 0.81
+    }
+   }
+  },
+  "hama2": {
+   "name": "hama2",
+   "parent": "world",
+   "pos": [
+    1.53388,
+    0.27812,
+    0.63997
+   ],
+   "quat": [
+    0.491269,
+    0.363226,
+    0.487727,
+    0.623573
+   ],
+   "fx": 553.96,
+   "fy": 553.96,
+   "cx": 317.14,
+   "cy": 222.22,
+   "width": 640,
+   "height": 480,
+   "fovy_deg": 46.85,
+   "T_parent_cam_opencv": [
+    [
+     -0.253443,
+     0.258374,
+     -0.932207,
+     1.53388
+    ],
+    [
+     0.966995,
+     0.041554,
+     -0.251384,
+     0.27812
+    ],
+    [
+     -0.026214,
+     -0.965151,
+     -0.260378,
+     0.63997
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "status": "provisional: actor held-out finger pads 1.7 px (hama1) / 1.0 px (hama2), two-view 0.4 px, with tcp.hand_offset_m and latency applied; scored with the base.xml hand (as measure_b0 does today) the same marks read about 12 px, so B0.kp_* needs the base.xml stack fix first. Exploratory: episode 0 only",
+   "method": "robot-keypoint bundle adjustment (calibrate_static_cameras, twin/camcal.py): render-and-compare of black joint caps (links 3-6) + finger pads on 557 frames, 8 plate-corner marks; hama1+hama2 jointly with shared f/cx/cy, per-camera latency, tool offset and board plate height; Cauchy loss; 3 iterations from the previous calib. Fit: runs/claude/run-standin-1/world/static_fit.json",
+   "latency_frames": -1.051,
+   "dist_k1_k2": [
+    0.0,
+    0.0
+   ],
+   "eval": {
+    "auto_heldout_px": {
+     "arm": 0.67,
+     "pads": 1.1
+    }
+   }
+  },
+  "hand": {
+   "name": "hand",
+   "parent": "gripper/hand",
+   "pos": [
+    0.05894,
+    -0.00066,
+    -0.00434
+   ],
+   "quat": [
+    0.126409,
+    0.692842,
+    0.700825,
+    0.113292
+   ],
+   "fx": 579.2,
+   "fy": 579.2,
+   "cx": 319.5,
+   "cy": 239.5,
+   "width": 640,
+   "height": 480,
+   "fovy_deg": 45.01,
+   "T_parent_cam_opencv": [
+    [
+     -0.007981,
+     -0.94248,
+     -0.334168,
+     0.05894
+    ],
+    [
+     0.999764,
+     -0.01427,
+     0.016367,
+     -0.00066
+    ],
+    [
+     -0.020194,
+     -0.333959,
+     0.942371,
+     -0.00434
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "status": "provisional: board leave-one-hole-out 4.9 px, pad inner corners on 77 held-out open frames 4.5 px, both with tcp.hand_offset_m applied (camera pose is in the corrected hand frame); with the base.xml hand the board points are about 23 mm closer than in reality, so measure_b0 needs the stack fix first. Exploratory",
+   "method": "wrist camera in the tool-corrected hand frame (calibrate_hand_camera): 15 hole marks on 15 frames (5 holes) + finger-pad top corners on the open/closed hand medians, f prior 615+-20 px, principal point at the centre. Fit: runs/claude/run-standin-1/world/hand_fit.json",
+   "latency_frames": 0.0,
+   "dist_k1_k2": [
+    0.0,
+    0.0
+   ],
+   "eval": {
+    "fit_board_px_median": 3.24,
+    "fit_near_px": [
+     4.95,
+     2.09,
+     4.28,
+     2.17,
+     1.72
+    ],
+    "board_leave_one_key_out_px_median": 4.89,
+    "heldout_finger_corner_px_median": 4.47,
+    "heldout_finger_corner_n": 146
+   }
+  }
+ },
+ "recording": "2025-01-09-14-11-58",
+ "episode": 0,
+ "frame": "robot base frame = FR3 link0 = MuJoCo world = mocap world (docs/research/reassemble-data-notes.md)",
+ "camera_convention": "pos/quat: MuJoCo camera frame (x right, y up, looks along -z) in its parent frame; fx fy cx cy in pixels at width x height, OpenCV pixel centres; T_parent_cam_opencv = OpenCV camera axes (x right, y down, z forward) in the parent frame",
+ "board": {
+  "pos": [
+   0.38725,
+   0.19657,
+   0.03817
+  ],
+  "quat": [
+   0.9999947,
+   0.0,
+   0.0,
+   -0.0032446
+  ],
+  "source": "x, y, yaw from robot contacts (board_contact, board_from_contacts); z = plate top from the two calibrated static cameras (plate corners triangulated with the robot-calibrated cameras: board_contact z 0.0079 + 30.3 mm, about +-4 mm)",
+  "plate_in_board_frame": {
+   "corners": [
+    [
+     0.38626,
+     -0.0043
+    ],
+    [
+     0.3804,
+     -0.38825
+    ],
+    [
+     -0.00355,
+     -0.3824
+    ],
+    [
+     0.00231,
+     0.00156
+    ]
+   ],
+   "top_z": 0.0,
+   "thickness": 0.009,
+   "source": "twin/assets/board_nist_plate.json (NIST laser plate at the contact layout)"
+  }
+ },
+ "tcp": {
+  "from_flange_m": 0.174,
+  "rotz_deg": -45.0,
+  "ft_stack_m": 0.0706,
+  "hand_tcp_m": 0.1034,
+  "site": "tcp on gripper/hand (= logged O_T_EE)",
+  "source": "FK of logged joints vs logged O_T_EE (0.6 mm max over episode 0)",
+  "hand_offset_m": -0.0229,
+  "hand_offset_note": "Physical hand (and fingers, and the wrist camera mount) sits this far along the hand z axis from where base.xml puts it: both static cameras see the finger pads 22.9 mm closer to the flange than base.xml (F/T stack 47.7 mm, not 70.6; the REASSEMBLE URDF stack is 44.5 mm). The logged O_T_EE (0.174 m from the flange) therefore lies about 23 mm beyond the pad centres. base.xml is unchanged (replay builds on it); renders apply it with view.set_hand_offset(calib_hand_offset(rec)). Proposed fix: FT_STACK = 0.0706 + hand_offset_m in build_base.py, with the tcp site moved by -hand_offset_m so it stays on O_T_EE."
+ },
+ "written_by": "twin/camcal.py write_calib (robot-keypoint recalibration)",
+ "written_at": "2026-10-24 21:13",
+ "notes": "Episode 0 only (exploratory). Recalibrated 2026-10-24 from robot keypoints (playbook/skills/world-frame, twin/camcal.py). Three twin corrections came out of the fit: (1) tcp.hand_offset_m: the physical hand is 22.9 mm closer to the flange than base.xml; (2) board z: plate top 30.3 mm above the mocap/contact z; (3) the rendered plate is the 384 mm NIST plate (twin/assets/board_nist_plate.json) on a base slab, not the 400 x 400 x 25 mm placeholder. cameras.*.latency_frames: the video lags the joint log by that many frames (FK at frame + latency matches the image). Previous values under \"previous\".",
+ "board_contact": {
+  "pos": [
+   0.3872457724149944,
+   0.1965718626549644,
+   0.007894681230968066
+  ],
+  "quat": [
+   0.9999947362938393,
+   0.0,
+   0.0,
+   -0.0032445931354725724
+  ],
+  "yaw_deg": -0.3718036381546564,
+  "sigma": {
+   "x_mm": 1.906,
+   "y_mm": 0.713,
+   "yaw_deg": 0.271,
+   "z_mm": 1.64
+  },
+  "file": "runs/claude/run-standin-1/board/2025-01-09-14-11-58.json",
+  "layout": "hole positions are in the file (board_xy per hole), from a layout refit on all train recordings except this one; full train layout: runs/claude/run-standin-1/board/layout_contact.json",
+  "source": "robot contact events of this recording: 15 insert seats / remove grasps from 15 parts, robust point-to-line fit of the rigid hole layout; closing-axis residual median 0.85 mm (twin/board_fit.py, tool board_from_contacts)",
+  "frame": "board = mocap NIST_Board1 convention (plate corner origin, z up); x, y, yaw from contacts; pos z copied from the mocap \"board\" entry because contacts do not pin z (grasp height varies 2-7 mm MAD per part; z_from_contacts kept for reference); roll = pitch = 0",
+  "delta_vs_mocap_board": {
+   "hole_shift_median_mm": 9.57,
+   "hole_shift_max_mm": 11.09,
+   "dyaw_deg": -0.626,
+   "dz_mm": 7.62
+  },
+  "note": "Leave-one-part-out on 24 gate recordings: closing-axis hole error 1.23 mm (contact) vs 4.08 mm (mocap). Mocap entry \"board\" kept unchanged.",
+  "written_by": "board-from-contacts (claude stand-in)",
+  "written_at": "2026-10-24 19:53",
+  "z_from_contacts": 0.015518873322010041
+ },
+ "previous": {
+  "note": "Values before the robot-keypoint recalibration of 2026-10-24 21:13. The static cameras came from silhouette/edge refinement (refine_camera) and the edge-overlay check; an independent watcher measured them at 5.35 px (hama1) and 16 px (hama2) on held-out finger pads, 7.1 px two-view, wrist camera 33 px. Kept for comparison only.",
+  "cameras": {
+   "hama1": {
+    "name": "hama1",
+    "parent": "world",
+    "pos": [
+     1.45477,
+     -0.67178,
+     0.53978
+    ],
+    "quat": [
+     0.676429,
+     0.522754,
+     0.299288,
+     0.423792
+    ],
+    "fx": 553.96,
+    "fy": 553.96,
+    "cx": 317.14,
+    "cy": 222.22,
+    "width": 640,
+    "height": 480,
+    "fovy_deg": 46.85,
+    "T_parent_cam_opencv": [
+     [
+      0.461655,
+      0.260422,
+      -0.847971,
+      1.45477
+     ],
+     [
+      0.886238,
+      -0.094258,
+      0.45354,
+      -0.67178
+     ],
+     [
+      0.038184,
+      -0.960883,
+      -0.274311,
+      0.53978
+     ],
+     [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ]
+    ],
+    "status": "provisional: actor held-out finger pads 1.7 px (hama1) / 1.0 px (hama2), two-view 0.4 px, with tcp.hand_offset_m and latency applied; scored with the base.xml hand (as measure_b0 does today) the same marks read about 12 px, so B0.kp_* needs the base.xml stack fix first. Exploratory: episode 0 only",
+    "method": "robot-keypoint bundle adjustment (calibrate_static_cameras, twin/camcal.py): render-and-compare of black joint caps (links 3-6) + finger pads on 557 frames, 8 plate-corner marks; hama1+hama2 jointly with shared f/cx/cy, per-camera latency, tool offset and board plate height; Cauchy loss; 3 iterations from the previous calib. Fit: runs/claude/run-standin-1/world/static_fit.json",
+    "latency_frames": -0.784,
+    "dist_k1_k2": [
+     0.0,
+     0.0
+    ],
+    "eval": {
+     "auto_heldout_px": {
+      "arm": 0.66,
+      "pads": 0.81
+     }
+    }
+   },
+   "hama2": {
+    "name": "hama2",
+    "parent": "world",
+    "pos": [
+     1.53388,
+     0.27812,
+     0.63997
+    ],
+    "quat": [
+     0.491269,
+     0.363226,
+     0.487727,
+     0.623573
+    ],
+    "fx": 553.96,
+    "fy": 553.96,
+    "cx": 317.14,
+    "cy": 222.22,
+    "width": 640,
+    "height": 480,
+    "fovy_deg": 46.85,
+    "T_parent_cam_opencv": [
+     [
+      -0.253443,
+      0.258374,
+      -0.932207,
+      1.53388
+     ],
+     [
+      0.966995,
+      0.041554,
+      -0.251384,
+      0.27812
+     ],
+     [
+      -0.026214,
+      -0.965151,
+      -0.260378,
+      0.63997
+     ],
+     [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ]
+    ],
+    "status": "provisional: actor held-out finger pads 1.7 px (hama1) / 1.0 px (hama2), two-view 0.4 px, with tcp.hand_offset_m and latency applied; scored with the base.xml hand (as measure_b0 does today) the same marks read about 12 px, so B0.kp_* needs the base.xml stack fix first. Exploratory: episode 0 only",
+    "method": "robot-keypoint bundle adjustment (calibrate_static_cameras, twin/camcal.py): render-and-compare of black joint caps (links 3-6) + finger pads on 557 frames, 8 plate-corner marks; hama1+hama2 jointly with shared f/cx/cy, per-camera latency, tool offset and board plate height; Cauchy loss; 3 iterations from the previous calib. Fit: runs/claude/run-standin-1/world/static_fit.json",
+    "latency_frames": -1.051,
+    "dist_k1_k2": [
+     0.0,
+     0.0
+    ],
+    "eval": {
+     "auto_heldout_px": {
+      "arm": 0.67,
+      "pads": 1.1
+     }
+    }
+   },
+   "hand": {
+    "name": "hand",
+    "parent": "gripper/hand",
+    "pos": [
+     0.05894,
+     -0.00066,
+     -0.00434
+    ],
+    "quat": [
+     0.126409,
+     0.692842,
+     0.700825,
+     0.113292
+    ],
+    "fx": 579.2,
+    "fy": 579.2,
+    "cx": 319.5,
+    "cy": 239.5,
+    "width": 640,
+    "height": 480,
+    "fovy_deg": 45.01,
+    "T_parent_cam_opencv": [
+     [
+      -0.007981,
+      -0.94248,
+      -0.334168,
+      0.05894
+     ],
+     [
+      0.999764,
+      -0.01427,
+      0.016367,
+      -0.00066
+     ],
+     [
+      -0.020194,
+      -0.333959,
+      0.942371,
+      -0.00434
+     ],
+     [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+     ]
+    ],
+    "status": "provisional: board leave-one-hole-out 4.9 px, pad inner corners on 77 held-out open frames 4.5 px, both with tcp.hand_offset_m applied (camera pose is in the corrected hand frame); with the base.xml hand the board points are about 23 mm closer than in reality, so measure_b0 needs the stack fix first. Exploratory",
+    "method": "wrist camera in the tool-corrected hand frame (calibrate_hand_camera): 15 hole marks on 15 frames (5 holes) + finger-pad top corners on the open/closed hand medians, f prior 615+-20 px, principal point at the centre. Fit: runs/claude/run-standin-1/world/hand_fit.json",
+    "latency_frames": 0.0,
+    "dist_k1_k2": [
+     0.0,
+     0.0
+    ],
+    "eval": {
+     "fit_board_px_median": 3.24,
+     "fit_near_px": [
+      4.95,
+      2.09,
+      4.28,
+      2.17,
+      1.72
+     ],
+     "board_leave_one_key_out_px_median": 4.89,
+     "heldout_finger_corner_px_median": 4.47,
+     "heldout_finger_corner_n": 146
+    }
+   }
+  },
+  "board": {
+   "pos": [
+    0.37870635579555934,
+    0.20121432280478546,
+    0.007894681230968066
+   ],
+   "quat": [
+    0.9999175356161786,
+    -0.0039611484753287185,
+    -0.01202073538232633,
+    0.002173708403074219
+   ],
+   "source": "mocap NIST_Board1 (poses JSON), checked by hama overlays",
+   "plate_in_board_frame": {
+    "x": [
+     -0.0102,
+     0.3738
+    ],
+    "y": [
+     -0.3833,
+     0.0007000000000000339
+    ],
+    "top_z": 0.0,
+    "source": "twin/assets/board_layout.json grid fit"
+   }
+  },
+  "tcp": {
+   "from_flange_m": 0.174,
+   "rotz_deg": -45.0,
+   "ft_stack_m": 0.0706,
+   "hand_tcp_m": 0.1034,
+   "site": "tcp on gripper/hand (= logged O_T_EE)",
+   "source": "FK of logged joints vs logged O_T_EE (0.6 mm max over episode 0)"
+  }
+ }
+}
