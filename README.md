@@ -6,6 +6,8 @@ A 1-day hackathon build on Google's **Gemini 4 Argon** (`gemini-4-argon`).
 
 **[Presenter's guide](docs/presentation.md)**
 
+Short read-out version: [docs/presentation-v2.md](docs/presentation-v2.md).
+
 > **Status, 2026-10-25 16:50 PDT.** Every result is **sim only**. No real arm has confirmed anything (rule D5). Argon now runs on the paid key, and Claude and Argon numbers are kept apart. Every number below is copied from the orchestrator's sheet, [`runs/orchestrator/story_numbers.md`](runs/orchestrator/story_numbers.md), or from the findings file named next to it. `runs/` is not in git, so those paths exist on the build machine only.
 
 **Where to see it:** the status page, `runs/status/index.html`, served locally:
