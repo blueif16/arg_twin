@@ -1,5 +1,7 @@
 # Bot18: footage → digital twin → robot policy
 
+**Live page:** https://bot18-page.vercel.app (the status page, frozen 2026-10-25 16:48 PDT, with every clip and image).
+
 A 1-day hackathon build on Google's **Gemini 4 Argon** (`gemini-4-argon`).
 
 **The story in one line.** Argon reads footage, builds a sim of the task, writes its own reward from the video, practises with retries and feedback, and compiles what works into cheap routines. A watcher scores every run and an auditor reads every trace, so the system catches its own mistakes. Everything is sim-only.

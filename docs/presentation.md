@@ -1,5 +1,7 @@
 # Bot18: presenter's guide
 
+**Live page:** https://bot18-page.vercel.app (the status page, frozen 2026-10-25 16:48 PDT, with every clip and image).
+
 Present from the Bot18 page: http://localhost:8765/runs/status/index.html.
 Every number below comes from `runs/orchestrator/story_numbers.md` (each line there names its findings file), or from the late-result files named in place.
 Status as of 16:49 PDT, 2026-10-25. Late results checked at 16:44 and 16:48: round 2, LIBERO compile, the compile vs one-shot paired test and the fairness controls have all landed. A larger fresh-init compile run is going until 16:57 (not included).

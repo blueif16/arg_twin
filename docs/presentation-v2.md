@@ -1,5 +1,7 @@
 # Bot18: recording script, in order
 
+**Live page:** https://bot18-page.vercel.app (the status page, frozen 2026-10-25 16:48 PDT, with every clip and image).
+
 **Page:** http://100.69.173.48:8765/index.html (Tailscale) or http://localhost:8765/runs/status/index.html.
 The long version with sources is `docs/presentation.md`.
 
